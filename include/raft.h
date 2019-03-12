@@ -1,6 +1,5 @@
 #include<stdio.h>
 
-
 struct raft_state{
 
     /* latest term server has seen (initialized to 0
@@ -21,7 +20,6 @@ struct raft_state{
     machine (initialized to 0, increases monotonically) */
     int lastApplied;
 
-    /* data */
 };
 
 struct RequestVote{
@@ -55,6 +53,4 @@ struct  AppendEntries{
     /* true if follower contained entry matching
     prevLogIndex and prevLogTerm */
     int success;
-
-
 };
