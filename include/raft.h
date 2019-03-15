@@ -107,10 +107,11 @@ typedef struct
 typedef {
     /* raft basic setting */
     raft_config_t config;
-    
-    /* raft roles */
-    raft_role_t role;
 
-    /* raft term */
+    raft_role_t role;
     int term;
+    void *logs;
+
+
+
 }
