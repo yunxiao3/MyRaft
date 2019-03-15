@@ -4,7 +4,7 @@ typedef enum {
 	FOLLOWER,
 	CANDIDATE,
 	LEADER
-} role_t;
+} raft_role_t;
 
 typedef struct {
 	int heartbeat_time;
@@ -102,3 +102,15 @@ typedef struct
     // raft_cbs_t *cb;
     // void* raft;
 } log;
+
+
+typedef {
+    /* raft basic setting */
+    raft_config_t config;
+    
+    /* raft roles */
+    raft_role_t role;
+
+    /* raft term */
+    int term;
+}
