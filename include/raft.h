@@ -1,5 +1,19 @@
 #include<stdio.h>
 
+typedef enum {
+	FOLLOWER,
+	CANDIDATE,
+	LEADER
+} role_t;
+
+typedef struct {
+	int heartbeat_time;
+	int election_min_time;
+	int election_max_time;
+	char *ip;
+	int port;
+} raft_config_t;
+
 typedef struct {
 
     /* latest term server has seen (initialized to 0
