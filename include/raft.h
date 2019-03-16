@@ -7,12 +7,26 @@ typedef enum {
 } raft_role_t;
 
 typedef struct {
+    /*the unit is ms */
 	int heartbeat_time;
 	int election_min_time;
 	int election_max_time;
+    int timeout;
+
 	char *ip;
 	int port;
-} raft_config_t;
+} *raft_config_t;
+
+typedef struct{
+    /* raft basic setting */
+    raft_config_t config;
+
+    /* if the role is leader time means heartbeat time otherwise means election time or timeout's time */
+    int time;
+    raft_role_t role;
+    int term;
+    void *logs;
+} *raft_node_t;
 
 typedef struct {
 
@@ -103,15 +117,18 @@ typedef struct
     // void* raft;
 } log;
 
-
-typedef {
+/* 
+typedef struct{
     /* raft basic setting */
     raft_config_t config;
 
+    /* if the role is leader time means heartbeat time otherwise means election time or timeout's time */
+    int time;
     raft_role_t role;
     int term;
     void *logs;
+} *raft_node_t; */
+
+// typedef raft_node *raft_node_t;
 
 
-
-}
