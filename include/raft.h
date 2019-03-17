@@ -276,6 +276,7 @@ typedef struct
 
 /** 添加日志回复.
  * 旧的Leader或Candidate收到该消息会变成Follower *／
+ * */
 typedef struct
 {
     /** 当前任期号 */
