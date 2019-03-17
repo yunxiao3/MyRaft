@@ -1,13 +1,31 @@
 #include<stdio.h>
-typedef struct
-{
-    void *buf;
 
+typedef void* raft_node_t;
+
+typedef enum {
+	FOLLOWER,
+	CANDIDATE,
+	LEADER
+} raft_role_t;
+
+
+typedef struct{
+    void *buf;
     unsigned int len;
 } raft_entry_data_t;
 
-typedef struct
-{
+typedef struct {
+    /*the unit is ms */
+	int heartbeat_time;
+	int election_min_time;
+	int election_max_time;
+    int timeout;
+	char *ip;
+	int port;
+} raft_config_t;
+
+
+typedef struct{
     /** the entry's term at the point it was created */
     int term;
 
@@ -23,8 +41,7 @@ typedef struct
 /** requestVote 请求投票
    * 竞选者Candidate去竞选Leader时发送给其它node的投票请求。
    * 其它Leader或者Candidate收到term比自己大的投票请求时，会自动变成Follower*/
-typedef struct
-{
+typedef struct{
     /** 当前任期号，通过任期号的大小与其它Candidate竞争Leader */
     int term;
 
@@ -95,3 +112,72 @@ typedef struct
     /** 从添加日志请求中接受的第一条日志索引 */
     int first_idx;
 } msg_appendentries_response_t;
+
+
+typedef struct {
+    /* 所有服务器比较固定的状态: */
+
+    /* 服务器最后一次知道的任期号（初始化为 0，持续递增） */
+    int current_term;
+
+    /* 记录在当前分期内给哪个Candidate投过票， */
+    int voted_for;
+
+    /* 日志条目集；每一个条目包含一个用户状态机执行的指令，和收到时的任期号 */
+    void* log;
+
+    /* 变动比较频繁的变量: */
+
+    /* 已知的最大的已经被提交的日志条目的索引值 */
+    int commit_idx;
+
+    /* 最后被应用到状态机的日志条目索引值（初始化为 0，持续递增） */
+    int last_applied_idx;
+
+    /* 三种状态：follower/leader/candidate */
+    raft_role_t role;
+
+    /* 计时器，周期函数每次执行时会递增改值 */
+    // int timeout_elapsed;
+
+    raft_node_t* nodes;
+    int num_nodes;
+
+    /* 每个noed的配置信息 */
+    raft_config_t* config;
+    
+    /* leader表示心跳时间，follower表示超时时间，candidate表示竞选使劲 */
+    int time;
+
+    // int election_timeout;
+    // int request_timeout;
+
+    /* 保存Leader的信息，没有Leader时为NULL */
+    raft_node_t* current_leader;
+
+    /* callbacks，由调用该raft实现的调用者来实现，网络IO和持久存储
+     * 都由调用者在callback中实现  暂时不实现这一部分功能*/
+    // raft_cbs_t cb;
+
+
+    void* udata;
+
+    /* 自己的信息 */
+    raft_node_t* node;
+
+    /* 该raft实现每次只进行一个服务器的配置更改，该变量记录raft server
+     * 是否正在进行配置更改*/
+    // int voting_cfg_change_log_idx;
+} raft_server_private_t;
+
+typedef struct
+{
+    void* udata;  /*一般保存与其它机器的连接信息，由使用者决定怎么实现连接*/
+
+    int next_idx; /*对于每一个服务器，需要发送给他的下一个日志条目的索引值（初始化为领导人最后索引值加一）*/
+    int match_idx; /*对于每一个服务器，已经复制给他的日志的最高索引值*/
+
+    int flags; /*有三种取值，是相或的关系 1:该机器有给我投票 2:该机器有投票权  3: 该机器有最新的日志*/
+
+    int id; /*机器对应的id值，这个每台机器在全局都是唯一的*/
+} raft_node_private_t;
