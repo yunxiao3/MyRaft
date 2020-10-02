@@ -9,7 +9,7 @@ import (
     "sync"
     "sync/atomic"
 	"time"
-	//"fmt"
+	"fmt"
 )
 import "../labrpc"
 
@@ -345,7 +345,7 @@ func (rf *Raft) beLeader() {
     if rf.state != Candidate {
         return
 	}
-	//fmt.Println(rf.me, " Become Leader !", rf.currentTerm)
+	fmt.Println(rf.me, " Become Leader !")
     rf.state = Leader
     //initialize leader data
     rf.nextIndex = make([]int,len(rf.peers))
@@ -360,7 +360,7 @@ func (rf *Raft) beLeader() {
 //Candidate Section:
 // If AppendEntries RPC received from new leader: convert to follower implemented in AppendEntries RPC Handler
 func (rf *Raft) beCandidate() { //Reset election timer are finished in caller
-	//fmt.Println(rf.me,"become Candidate", rf.currentTerm)
+	fmt.Println(rf.me,"become Candidate")
 	rf.state = Candidate
     rf.currentTerm++ //Increment currentTerm
     rf.votedFor = rf.me //vote myself first

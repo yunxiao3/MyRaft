@@ -61,7 +61,6 @@ func (rf *Raft) AppendEntries(args *AppendEntry, reply *AppendEntryReply) {
 	if args.PrevLogIndex >= 0 && args.PrevLogIndex < len(rf.log){
 		prevLogTerm = rf.log[args.PrevLogIndex].Term
 	}
-
 	if prevLogTerm != args.PrevLogTerm {
 		reply.ConflictIndex = logSize
 		if prevLogTerm == -1 {

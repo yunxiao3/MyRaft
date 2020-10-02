@@ -444,11 +444,12 @@ func TestBackup2B(t *testing.T) {
 	cfg.connect((leader1 + 1) % servers)
 	cfg.connect(other)
 
+	fmt.Println("PASS TestBackup2B A")
+
 	// lots of successful commands to new group.
 	for i := 0; i < 50; i++ {
 		cfg.one(rand.Int(), 3, true)
 	}
-
 	// now everyone
 	for i := 0; i < servers; i++ {
 		cfg.connect(i)

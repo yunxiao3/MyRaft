@@ -345,7 +345,7 @@ func (rf *Raft) beLeader() {
     if rf.state != Candidate {
         return
 	}
-	fmt.Println(rf.me, " Become Leader !")
+	fmt.Println(rf.me, " Become Leader !", rf.currentTerm)
     rf.state = Leader
     //initialize leader data
     rf.nextIndex = make([]int,len(rf.peers))
@@ -360,7 +360,8 @@ func (rf *Raft) beLeader() {
 //Candidate Section:
 // If AppendEntries RPC received from new leader: convert to follower implemented in AppendEntries RPC Handler
 func (rf *Raft) beCandidate() { //Reset election timer are finished in caller
-    rf.state = Candidate
+	fmt.Println(rf.me,"become Candidate", rf.currentTerm)
+	rf.state = Candidate
     rf.currentTerm++ //Increment currentTerm
     rf.votedFor = rf.me //vote myself first
     rf.persist()
