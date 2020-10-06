@@ -1,0 +1,31 @@
+syntax = "proto3";
+ 
+//package helloworld;
+ 
+// The greeting service definition.
+service RAFT {
+    // Sends a greeting
+    rpc RequestVote (RequestVoteArgs) returns (RequestVoteReply) {}
+    rpc AppendEntries (AppendEntriesArgs) returns (AppendEntriesReply){};
+
+}
+ 
+// The request message containing the user's name.
+message RequestVoteArgs {
+    // TODO.....
+    string name = 1;
+}
+ 
+// The response message containing the greetings
+message RequestVoteReply {
+    // TODO.....
+    string message = 1;
+}
+
+message AppendEntriesArgs{
+    string name = 1;
+}
+
+message AppendEntriesReply {
+    string message = 1;
+}
