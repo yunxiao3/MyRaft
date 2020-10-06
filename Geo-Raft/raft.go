@@ -2,7 +2,7 @@ package raft
 
 import (
     "bytes"
-    "../labgob"
+    "labgob"
    // "log"
     "math/rand"
     "sort"
@@ -11,7 +11,7 @@ import (
 	"time"
 	//"fmt"
 )
-import "../labrpc"
+import "./labrpc"
 
 type ApplyMsg struct {
     CommandValid bool
