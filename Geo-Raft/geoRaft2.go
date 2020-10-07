@@ -78,16 +78,7 @@ func send(ch chan bool) {
 
 // SayHello implements helloworld.GreeterServer
 func (raft *Raft) RequestVote(ctx context.Context, in *RPC.RequestVoteArgs) (*RPC.RequestVoteReply, error) {
-	/* raft.msg = raft.msg + in.Name
 
-	if (in.Name == "ABC"){
-		fmt.Println("RequestVoteArgs name is ABC")
-		
-		return &pb.RequestVoteReply{Message: "Hello ABC " + in.Name}, nil
-	}else{
-		fmt.Println("RequestVoteArgs name is raft ")
-		return &pb.RequestVoteReply{Message: "Hello RAFT" + raft.msg}, nil
-	} */
 	return &RPC.RequestVoteReply{Term:1}, nil
 }
  
