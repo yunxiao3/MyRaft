@@ -3,7 +3,7 @@
  
  import (
 	 "log"
-	 "os"
+	// "os"
 	 "time"
 	 "golang.org/x/net/context"
 	 "google.golang.org/grpc"
@@ -14,10 +14,40 @@
 	 address     = "localhost:50051"
 	 defaultName = "world"
  )
-  
+
+
+ type Raft struct{
+	client pb.RAFTClient
+}
+
+func (raft *Raft) init(){
+	conn, err := grpc.Dial(address, grpc.WithInsecure())
+	if err != nil {
+		log.Fatalf("did not connect: %v", err)
+	}
+//	defer conn.Close()
+	raft.client = pb.NewRAFTClient(conn)
+}
+
+func (raft *Raft)RequestVote(){
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	r, err := raft.client.RequestVote(ctx, &pb.RequestVoteArgs{Name: "name"})
+	if err != nil {
+		log.Fatalf("could not greet: %v", err)
+	}
+	log.Printf("Greeting: %s", r.Message)
+}
+
+
  func main() {
+
+	raft := Raft{}
+	raft.init()
+	raft.RequestVote()
 	 // Set up a connection to the server.
-	 conn, err := grpc.Dial(address, grpc.WithInsecure())
+	/*  conn, err := grpc.Dial(address, grpc.WithInsecure())
 	 if err != nil {
 		 log.Fatalf("did not connect: %v", err)
 	 }
@@ -44,7 +74,7 @@
 			log.Fatalf("could not greet: %v", err)
 		}
 		log.Printf("Greeting: %s", r.Message)
-	 }
+	 } */
 	 
  }
  

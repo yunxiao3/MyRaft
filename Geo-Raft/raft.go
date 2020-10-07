@@ -2,7 +2,7 @@ package raft
 
 import (
     "bytes"
-    "labgob"
+    "./labgob"
    // "log"
     "math/rand"
     "sort"
@@ -295,11 +295,7 @@ func (rf *Raft) startAppendLog() {
                     rf.nextIndex[idx] = tarIndex;
                     rf.mu.Unlock()
 				}
-				
 			}	
-			
-
-
         }(i)
     }
 }
