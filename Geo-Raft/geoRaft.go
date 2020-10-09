@@ -64,7 +64,7 @@ type Raft struct {
 	
 
 	// New 
-
+	
 	client RPC.RAFTClient
 
 }
