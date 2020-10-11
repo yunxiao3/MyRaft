@@ -537,3 +537,11 @@ func Make(peers []*labrpc.ClientEnd, me int,
     }()
     return rf
 }
+
+
+
+func MakeTest() *Raft{
+    rf := &Raft{}
+    rf.currentTerm = 999
+    return rf
+}

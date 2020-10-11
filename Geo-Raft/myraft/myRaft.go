@@ -1,4 +1,4 @@
-package main
+package myraft
 
 import (
 	"log"
@@ -14,7 +14,7 @@ import (
 	"math/rand"
 	"../labgob"
 	"bytes"
-	"os"
+	//"os"
 )
 
 type State int
@@ -297,6 +297,17 @@ func (rf *Raft) startAppendLog() {
 }
 
 
+func (rf *Raft) GetState() (int32, bool) {
+    var term int32
+    var isleader bool
+    rf.mu.Lock()
+    defer rf.mu.Unlock()
+    term = rf.currentTerm
+    isleader = (rf.state == Leader)
+    return term, isleader
+}
+
+
 //If election timeout elapses: start new election handled in caller
 func (rf *Raft) startElection() {
 
@@ -499,39 +510,29 @@ func (rf *Raft) sendRequestVote(address string ,args *RPC.RequestVoteArgs) (bool
 
 
 
-func main() {
-	raft := Raft{}
+func MakeRaft() *Raft {
+	raft := &Raft{}
 
 
-
-
-	
-/* 	for i:= 0; i < 10; i++{
-		raft.startElection()
-		//raft.StartAppendEntries()
-	} */
-
-	if (len(os.Args) > 1){
+/* 	if (len(os.Args) > 1){
 		raft.members = make([]string, len(os.Args) - 1)
 		for i:= 0; i < len(os.Args) - 1; i++{
 			//fmt.Printf("args[%v]=[%v]\n",k,v)
 			raft.members[i] = os.Args[i+1]
 			fmt.Printf(raft.members[i])
 		}
-	}
-
+	} */
+	//raft.members[0] = "localhost:5000"
 	
-	raft.init(raft.members[0])
-	fmt.Println("init raft address " , raft.members[0])	
+	raft.init("localhost:5000")
+	return raft
+
+	/* 	fmt.Println("init raft address " , raft.members[0])	
 
 	time.Sleep(time.Second*12)
 
-/* 	raft.mu.Lock()
-	raft.beLeader()
-	send(raft.voteCh)
-	raft.mu.Unlock() */
 
-	time.Sleep(time.Second*200)
+	time.Sleep(time.Second*200) */
 
 
-}
+} 
