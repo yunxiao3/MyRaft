@@ -192,17 +192,22 @@ func (rf *Raft)AppendEntries(ctx context.Context, args *RPC.AppendEntriesArgs) (
 
 func (rf *Raft) RegisterServer(address string)  {
 	// Register Server 
-	lis, err := net.Listen("tcp", address)
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+	for{
+
+		lis, err := net.Listen("tcp", address)
+		if err != nil {
+			log.Fatalf("failed to listen: %v", err)
+		}
+		s := grpc.NewServer()
+		RPC.RegisterRAFTServer(s, rf /* &Raft{} */)
+		// Register reflection service on gRPC server.
+		reflection.Register(s)
+		if err := s.Serve(lis); err != nil {
+			fmt.Println("failed to serve: %v", err)
+		}
+		
 	}
-	s := grpc.NewServer()
-	RPC.RegisterRAFTServer(s, rf /* &Raft{} */)
-	// Register reflection service on gRPC server.
-	reflection.Register(s)
-	if err := s.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
-	}
+	
 }
 
 
@@ -382,7 +387,7 @@ func (rf *Raft) init (add string) {
 
 
 
-	heartbeatTime := time.Duration(10) * time.Millisecond
+	heartbeatTime := time.Duration(1) * time.Millisecond
 	go func() {
         for {
             select {
@@ -470,7 +475,7 @@ func (rf *Raft) sendAppendEntries(address string , args  *RPC.AppendEntriesArgs)
 	//args := &RPC.AppendEntriesArgs{}
 	r, err := rf.client.AppendEntries(ctx,args)
 	if err != nil {
-		log.Fatalf("could not greet: %v", err)
+		log.Printf("could not greet: %v", err)
 	}
 	log.Printf("Append reply: %s", r)
 	//fmt.Println("Append name is ABC")

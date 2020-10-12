@@ -16,10 +16,12 @@ import (
  func main() {
 
 	raft := myraft.MakeRaft(os.Args)
-
 	raft.GetState()
-
-	time.Sleep(time.Second*12)
+/* 	for {
+		fmt.Println(  )
+		 
+	} */
+	time.Sleep(time.Second*1200)
 
 
 
