@@ -19,7 +19,7 @@ import (
 
 	raft.GetState()
 
-	time.Sleep(time.Second*120)
+	time.Sleep(time.Second*12)
 
 
 
