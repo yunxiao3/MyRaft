@@ -72,7 +72,15 @@ func (kv *KVServer) PutAppend(ctx context.Context,args *KV.PutAppendArgs) ( *KV.
 
 
 func (kv *KVServer) Get(ctx context.Context, args *KV.GetArgs) ( *KV.GetReply, error){
+
+//	fmt.
+
 	reply := &KV.GetReply{}
+
+
+	reply.Value = "TestString"
+
+
 	_ , isLeader := kv.rf.GetState()
 	reply.IsLeader = false;
 	if !isLeader{
@@ -133,7 +141,7 @@ func (kv *KVServer) RegisterServer(address string)  {
 
 func main()  {
 	server := KVServer{}
-	go server.RegisterServer("localhost:40000")
+	go server.RegisterServer("localhost:4000")
 	fmt.Println(os.Args)
 	server.rf = myraft.MakeRaft(os.Args)
 
