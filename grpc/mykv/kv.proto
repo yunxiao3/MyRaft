@@ -5,8 +5,8 @@ syntax = "proto3";
 // The greeting service definition.
 service KV {
     // Sends a greeting
-    rpc PUT (PutAppendArgs) returns (PutAppendReply) {}
-    rpc GET (GetArgs) returns (GetReply){};
+    rpc PutAppend (PutAppendArgs) returns (PutAppendReply) {}
+    rpc Get (GetArgs) returns (GetReply){};
 }
 
 

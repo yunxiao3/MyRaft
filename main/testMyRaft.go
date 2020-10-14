@@ -17,11 +17,11 @@ import (
 
 	raft := myraft.MakeRaft(os.Args)
 	raft.GetState()
-/* 	for {
+	/* for {
 		fmt.Println(  )
 		 
 	} */
-	time.Sleep(time.Second*1200)
+	time.Sleep(time.Second*12)
 
 
 
