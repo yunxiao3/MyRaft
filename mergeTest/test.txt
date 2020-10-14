@@ -1,3 +1,7 @@
 
+<<<<<<< HEAD
 
 Add master
+=======
+Add mergeTest
+>>>>>>> mergeTest
