@@ -2,21 +2,23 @@
 package main
 
 import (
-	 OB "../georaft"
+	 SE "../georaft"
 	 "fmt"
 	 "log"
-	 "time"
-	"golang.org/x/net/context"
+	 "golang.org/x/net/context"
 	"google.golang.org/grpc"
+	"time"
 	RPC "../grpc/georaft"
-
+	
 )
 
 
 
 
 
-func  sendAppendEntries(address string , args  *RPC.AppendEntriesArgs){
+
+
+func  L2SsendAppendEntries(address string , args  *RPC.L2SAppendEntriesArgs){
 
 	fmt.Println("StartAppendEntries")
 
@@ -26,13 +28,13 @@ func  sendAppendEntries(address string , args  *RPC.AppendEntriesArgs){
 		log.Fatalf("did not connect: %v", err)
 	}
 	defer conn.Close()
-	client := RPC.NewObserverClient(conn)
+	client := RPC.NewSecretaryClient(conn)
 
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	//args := &RPC.AppendEntriesArgs{}
-	r, err := client.AppendEntries(ctx,args)
+	r, err := client.L2SAppendEntries(ctx,args)
 	if err != nil {
 		log.Printf("could not greet: %v", err)
 	}
@@ -43,22 +45,27 @@ func  sendAppendEntries(address string , args  *RPC.AppendEntriesArgs){
 
 
 func main()  {
-	ob := OB.MakeObserver("localhost:5001")
+
+	members := make([]string, 2)
+
+	members[0] = "localhost:5000"
+	members[1] = "localhost:5001"
+
+	se := SE.MakeSecretary(members)
 
 
-	if (ob != nil){
+	if (se != nil){
 		fmt.Println("SUCCESS")
-		/* for{
-			args := &RPC.AppendEntriesArgs{}
-			sendAppendEntries("localhost:5000", args)
-		} */
+		 for{
+			args := &RPC.L2SAppendEntriesArgs{}
+			L2SsendAppendEntries("localhost:5000", args)
+			time.Sleep(time.Second )
 
+			fmt.Println("L2SsendAppendEntries")
+		} 
 	}else{
 		fmt.Println("FAIL")
 	}
-
-	time.Sleep(time.Second * 10000 )
-
 
 
 

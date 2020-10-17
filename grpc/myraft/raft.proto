@@ -1,0 +1,45 @@
+syntax = "proto3";
+ 
+//package helloworld;
+ 
+// The greeting service definition.
+service RAFT {
+    // Sends a greeting
+    rpc RequestVote (RequestVoteArgs) returns (RequestVoteReply) {}
+    rpc AppendEntries (AppendEntriesArgs) returns (AppendEntriesReply){};
+
+}
+ 
+// The request message containing the user's name.
+message RequestVoteArgs {
+    int32 Term = 1;
+    int32 CandidateId = 2;
+    int32 LastLogIndex = 3;
+    int32 LastLogTerm = 4;
+}
+ 
+// The response message containing the greetings
+message RequestVoteReply {
+    int32 Term = 1;        
+    bool VoteGranted = 2; 
+}
+
+message AppendEntries{}
+
+
+message AppendEntriesArgs {
+    int32 Term = 1;      //  "leader’s term"
+    int32 LeaderId = 2;  //  "so follower can redirect clients"
+    int32 PrevLogIndex = 3;      //  "index of log entry immediately preceding new ones"
+    int32 PrevLogTerm = 4;      //"term of prevLogIndex entry"
+    bytes      Log = 5;  //"log entries to store (empty for heartbeat;may send more than one for efficiency)"
+    int32 LeaderCommit = 6;    // "leader’s commitIndex"
+}
+
+message AppendEntriesReply{
+    int32 Term = 1;             
+    bool Success = 2;       
+    int32 ConflictIndex  = 3;
+    int32 ConflictTerm  = 4;
+}
+
