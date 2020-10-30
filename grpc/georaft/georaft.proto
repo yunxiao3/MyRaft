@@ -1,0 +1,52 @@
+syntax = "proto3";
+ 
+ 
+service RAFT {
+    rpc RequestVote (RequestVoteArgs) returns (RequestVoteReply) {};
+    rpc AppendEntries (AppendEntriesArgs) returns (AppendEntriesReply){};
+}
+
+message RequestVoteArgs {
+    int32 Term = 1;
+    int32 CandidateId = 2;
+    int32 LastLogIndex = 3;
+    int32 LastLogTerm = 4;
+}
+ 
+message RequestVoteReply {
+    int32 Term = 1;        
+    bool VoteGranted = 2; 
+}
+
+message AppendEntriesArgs {
+    int32 Term = 1;     
+    int32 LeaderId = 2;  
+    int32 PrevLogIndex = 3;      
+    int32 PrevLogTerm = 4;      
+    bytes      Log = 5;  
+    int32 LeaderCommit = 6;    
+}
+message AppendEntriesReply{
+    int32 Term = 1;             
+    bool Success = 2;       
+    int32 ConflictIndex  = 3;
+    int32 ConflictTerm  = 4;
+}
+
+service Secretary {
+    rpc L2SAppendEntries (AppendEntriesArgs) returns (L2SAppendEntriesReply) {};
+
+}
+
+
+
+message L2SAppendEntriesReply {
+
+    bytes MatchIndex = 1;
+
+}
+
+service Observer{
+    rpc AppendEntries (AppendEntriesArgs) returns (AppendEntriesReply){};
+}
+

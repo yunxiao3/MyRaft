@@ -1,0 +1,37 @@
+syntax = "proto3";
+ 
+//package helloworld;
+ 
+// The greeting service definition.
+service KV {
+    // Sends a greeting
+    rpc PutAppend (PutAppendArgs) returns (PutAppendReply) {}
+    rpc Get (GetArgs) returns (GetReply){};
+}
+
+
+message PutAppendArgs  {
+	string Key = 1;  
+	string Value = 2; 
+	string Op = 3;
+	int64 Id = 4;
+	int64 Seq  =5;
+}
+
+message PutAppendReply  {
+    bool IsLeader = 1;
+    bool Success = 2;
+}
+
+
+message GetArgs  {
+	string Key = 1;
+	// You'll have to add definitions here.
+}
+
+message GetReply  {
+	bool IsLeader = 1;
+	string Value = 2;
+}
+
+ 
