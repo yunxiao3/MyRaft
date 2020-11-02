@@ -24,11 +24,14 @@ const (
     Candidate             // value --> 1
     Leader                // value --> 2
 )
+const NULL int32 = -1
+
 
 type Log struct {
-    Term    int32         "term when entry was received by leader"
-    Command interface{} "command for state machine,"
+    Term    int32       //  "term when entry was received by leader"
+    Command interface{} //"command for state machine,"
 }
+
 
 type ApplyMsg struct {
     CommandValid bool
@@ -46,17 +49,17 @@ type Raft struct {
     state     State
 
     //Persistent state on all servers:(Updated on stable storage before responding to RPCs)
-    currentTerm int32    "latest term server has seen (initialized to 0 increases monotonically)"
-    votedFor    int32    "candidateId that received vote in current term (or null if none)"
-    log         []Log  "log entries;(first index is 1)"
+    currentTerm int32   // "latest term server has seen (initialized to 0 increases monotonically)"
+    votedFor    int32   // "candidateId that received vote in current term (or null if none)"
+    log         []Log  // "log entries;(first index is 1)"
 
     //Volatile state on all servers:
-    commitIndex int32    "index of highest log entry known to be committed (initialized to 0, increases monotonically)"
-    lastApplied int32    "index of highest log entry applied to state machine (initialized to 0, increases monotonically)"
+    commitIndex int32   // "index of highest log entry known to be committed (initialized to 0, increases monotonically)"
+    lastApplied int32   // "index of highest log entry applied to state machine (initialized to 0, increases monotonically)"
 
     //Volatile state on leaders：(Reinitialized after election)
-    nextIndex   []int32  "for each server,index of the next log entry to send to that server"
-    matchIndex  []int32  "for each server,index of highest log entry known to be replicated on server(initialized to 0, im)"
+    nextIndex   []int32 // "for each server,index of the next log entry to send to that server"
+    matchIndex  []int32 // "for each server,index of highest log entry known to be replicated on server(initialized to 0, im)"
 
     //channel
     applyCh     chan ApplyMsg // from Make()
@@ -74,7 +77,6 @@ type Raft struct {
 
 }
 
-const NULL int32 = -1
 
 
 
@@ -151,7 +153,7 @@ func (rf *Raft)AppendEntries(ctx context.Context, args *RPC.AppendEntriesArgs) (
 	var log []Log 
 	d.Decode(&log) 	
     
-	fmt.Println("AppendEntries CALL",log )
+//	fmt.Println("AppendEntries CALL",log )
 
 	reply := &RPC.AppendEntriesReply{}
 	//rf.currentTerm ++
@@ -196,8 +198,6 @@ func (rf *Raft) RegisterServer(address string)  {
 	}
 	
 }
-
-
 //Follower Section:
 func (rf *Raft) beFollower(term int32) {
     rf.state = Follower
@@ -216,8 +216,8 @@ func (rf *Raft) beLeader() {
 	} 	
     rf.state = Leader
     //initialize leader data
-    rf.nextIndex = make([]int32,/* len(rf.peers) */10)
-    rf.matchIndex = make([]int32,/* len(rf.peers) */10)//initialized to 0
+    rf.nextIndex = make([]int32,len(rf.members))
+    rf.matchIndex = make([]int32,len(rf.members))
     for i := 0; i < len(rf.nextIndex); i++ {//(initialized to leader last log index + 1)
         rf.nextIndex[i] = rf.getLastLogIdx() + 1
 	}
@@ -241,7 +241,7 @@ func (rf *Raft) beCandidate() { //Reset election timer are finished in caller
 
 func (rf *Raft) startAppendLog() {
 	
-	fmt.Println("startAppendLog ")
+	//fmt.Println("startAppendLog ")
 	
 	idx := 0
 	//appendLog := append(make([]Log,0),rf.log[rf.nextIndex[idx]:]...)
@@ -315,7 +315,6 @@ func (rf *Raft) startElection() {
             ret,reply :=  rf.sendRequestVote(rf.members[idx],&args/* ,&reply */)
  
             if ret {
-				//fmt.Println( "reply.ret #### ")
                 /* rf.mu.Lock()
                 defer rf.mu.Unlock() */
                 if reply.Term > rf.currentTerm {
@@ -346,7 +345,7 @@ func (rf *Raft) startElection() {
 }
 
 
-func (rf *Raft) init (add string) {
+func (rf *Raft) init () {
 
     rf.state = Follower
     rf.currentTerm = 0
@@ -362,10 +361,11 @@ func (rf *Raft) init (add string) {
     rf.killCh = make(chan bool,1)
 
 	rf.persist = &Per.Persister{}
-	fmt.Println("#############", "../db/"+add)
-	rf.persist.Init("../db/"+add)
+//	fmt.Println("#############", "../db/"+add)
+	rf.persist.Init("../db/"+rf.address)
 
-	heartbeatTime := time.Duration(1) * time.Millisecond
+
+	heartbeatTime := time.Duration(150) * time.Millisecond
 	go func() {
         for {
             select {
@@ -389,7 +389,7 @@ func (rf *Raft) init (add string) {
                 //    rf.mu.Unlock()
                 }
 			case Leader:
-				rf.Start(nil)
+			//	rf.Start(nil)
                 rf.startAppendLog()
                 time.Sleep(heartbeatTime )
             }
@@ -397,12 +397,8 @@ func (rf *Raft) init (add string) {
     }()
 
 	// Add New 
-	rf.address = add;	
 
 	go  rf.RegisterServer(rf.address)
-
-	
-
 	
 }
 
@@ -422,7 +418,8 @@ func (rf *Raft) Start(command interface{}) (int32, int32, bool) {
         }
         rf.log = append(rf.log,newLog)
        // rf.persist()
-    }
+	}
+	fmt.Println(rf.log)
     return index, term, isLeader
 }
 
@@ -430,7 +427,7 @@ func (rf *Raft) Start(command interface{}) (int32, int32, bool) {
 
 func (rf *Raft) sendAppendEntries(address string , args  *RPC.AppendEntriesArgs){
 
-	fmt.Println("StartAppendEntries")
+//	fmt.Println("StartAppendEntries")
 
 	// Initialize Client
 	conn, err := grpc.Dial( address , grpc.WithInsecure(),grpc.WithBlock())
@@ -444,11 +441,12 @@ func (rf *Raft) sendAppendEntries(address string , args  *RPC.AppendEntriesArgs)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	//args := &RPC.AppendEntriesArgs{}
-	r, err := rf.client.AppendEntries(ctx,args)
+	_, err = rf.client.AppendEntries(ctx,args)
 	if err != nil {
 		log.Printf("could not greet: %v", err)
 	}
-	log.Printf("Append reply: %s", r)
+
+//	log.Printf("Append reply: %s", r)
 	//fmt.Println("Append name is ABC")
 }
 
@@ -481,20 +479,22 @@ func (rf *Raft) sendRequestVote(address string ,args *RPC.RequestVoteArgs) (bool
 }
 
 
-func MakeRaft(Args []string) *Raft {
+func MakeRaft(add string ,mem []string) *Raft {
 	raft := &Raft{}
-	if (len(Args) <= 1){
-		//fmt.Println()
+	if (len(mem) <= 1 ){
 		panic("#######Address is less 1, you should set follower's address!######")
 	}
 
- 	if (len(Args) > 1){
-		raft.members = make([]string, len(Args) - 1)
-		for i:= 0; i < len(Args) - 1; i++{
-			raft.members[i] = Args[i+1]
-			fmt.Printf(raft.members[i])
-		}
-	} 	
-	raft.init(raft.members[0])
+
+	raft.address = add
+
+ 	
+	raft.members = make([]string, len(mem))
+	for i:= 0; i < len(mem)  ; i++{
+		raft.members[i] = mem[i]
+		fmt.Println(raft.members[i])
+	}
+
+	raft.init()
 	return raft
 } 

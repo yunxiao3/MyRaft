@@ -14,8 +14,9 @@ message PutAppendArgs  {
 	string Key = 1;  
 	string Value = 2; 
 	string Op = 3;
-	int64 Id = 4;
+/*	int64 Id = 4;
 	int64 Seq  =5;
+*/
 }
 
 message PutAppendReply  {

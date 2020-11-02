@@ -30,14 +30,6 @@ func makeSeed() int64 {
 }
 
 
-/* func nrand() int64 {
-	max := big.NewInt(int64(1) << 62)
-	bigx, _ := rand.Int(rand.Reader, max)
-	x := bigx.Int64()
-	return x
-} */
-
-
 func MakeClerk(servers []string ) *Clerk {
 	ck := new(Clerk)
 	ck.servers = servers
@@ -53,99 +45,101 @@ func MakeClerk(servers []string ) *Clerk {
 
 
 func (ck *Clerk) Get(key string) string {
-	
-	//id := ck.leaderId
 	args := &KV.GetArgs{Key:key}
-
-	reply, ok := ck.getValue(ck.servers[0], args)
-	if (ok){
-		return reply.Value
-	}
-	return reply.Value
-
-
-/* 
-	//reply  := &KV.GetReply{}
+	id := ck.leaderId
 	for {
-		//ok := ck.servers[id].Call("KVServer.Get",&args, &reply )	
-		
-		
+		reply, ok := ck.getValue(ck.servers[id], args)
+		fmt.Println(reply.IsLeader)
 		if (ok && reply.IsLeader){
 			ck.leaderId = id;
-			//fmt.Println("get value ",  reply.Value)
 			return reply.Value;
 		}
-//		fmt.Println("Wrong leader !")
-
 		id = (id + 1) % len(ck.servers) 
-	} */
-	
-	//return reply.Value
+	} 
 }
 
-
 func (ck *Clerk) getValue(address string , args  *KV.GetArgs) (*KV.GetReply, bool){
-
-	fmt.Println("getValue")
-
 	// Initialize Client
 	conn, err := grpc.Dial( address , grpc.WithInsecure(),grpc.WithBlock())
 	if err != nil {
-		log.Fatalf("did not connect: %v", err)
+		log.Printf("did not connect: %v", err)
 	}
 	defer conn.Close()
 	client := KV.NewKVClient(conn)
-
-
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	//args := &RPC.AppendEntriesArgs{}
 	reply, err := client.Get(ctx,args)
 	if err != nil {
 		log.Printf("could not greet: %v", err)
 	}
-
-
 	return reply, true
-	//log.Printf("Append reply: %s", r)
-	//fmt.Println("Append name is ABC")
 }
 
 
-/* 
 
-func (ck *Clerk) PutAppend(key string, value string, op string) {
+func (ck *Clerk) Put(key string, value string) bool {
 	// You will have to modify this function.
-	args := KV.PutAppendArgs{key,value,op, ck.id,ck.seq}
-	ck.seq++
+	args := &KV.PutAppendArgs{Key:key,Value:value,Op:"Put", Id:ck.id, Seq:ck.seq }
 	id := ck.leaderId
 	for {
-		reply := KV.PutAppendReply{}
-		ok := ck.servers[id].Call("KVServer.PutAppend", &args, &reply)
+		reply, ok := ck.putAppendValue(ck.servers[id], args)
 		if (ok && reply.IsLeader){
 			ck.leaderId = id;
-		//	fmt.Println("putappend", key , value)
-			return 
+			return true
 		}
-		fmt.Print()
-		id = (id + 1) % len(ck.servers)
+		id = (id + 1) % len(ck.servers) 
 	} 
 }
 
-func (ck *Clerk) Put(key string, value string) {
-	ck.PutAppend(key, value, "Put")
+
+
+func (ck *Clerk) Append(key string, value string) bool {
+	// You will have to modify this function.
+	args := &KV.PutAppendArgs{Key:key,Value:value,Op:"Append", Id:ck.id, Seq:ck.seq }
+	id := ck.leaderId
+	for {
+		reply, ok := ck.putAppendValue(ck.servers[id], args)
+		if (ok && reply.IsLeader){
+			ck.leaderId = id;
+			return true
+		}
+		id = (id + 1) % len(ck.servers) 
+	} 
 }
-func (ck *Clerk) Append(key string, value string) {
-	ck.PutAppend(key, value, "Append")
-} */
+
+
+func (ck *Clerk) putAppendValue(address string , args  *KV.PutAppendArgs) (*KV.PutAppendReply, bool){
+	// Initialize Client
+	conn, err := grpc.Dial( address , grpc.WithInsecure(),grpc.WithBlock())
+	if err != nil {
+		log.Printf("did not connect: %v", err)
+	}
+	defer conn.Close()
+	client := KV.NewKVClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	reply, err := client.PutAppend(ctx,args)
+	if err != nil {
+		log.Printf("could not greet: %v", err)
+	}
+	return reply, true
+}
+
+
+
 
 
 func main()  {
 	ck := Clerk{}
-	ck.servers = make([]string, 5) 
-	ck.servers[0] = "localhost:4000"
-	for {
+	ck.servers = make([]string, 2) 
+	ck.servers[0] = "localhost:50011"
+	ck.servers[1] = "localhost:50001"
+
+	for i := 0; i < 10 ; i++ {
 		fmt.Println( ck.Get("get") )
+
+		time.Sleep(time.Second*1)
+		ck.Put("key","value")
 	}
 
 }

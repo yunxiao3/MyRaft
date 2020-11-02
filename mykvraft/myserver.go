@@ -7,10 +7,11 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
-	"os"
 	"../myraft"
 	"sync"
+	"flag"
 	"time"
+	"strings"
 	"fmt"
 	KV "../grpc/mykv"
 )
@@ -46,27 +47,22 @@ type KVServer struct {
 func (kv *KVServer) PutAppend(ctx context.Context,args *KV.PutAppendArgs) ( *KV.PutAppendReply, error){
 	// Your code here.
 	reply := &KV.PutAppendReply{};
-	_ , isLeader := kv.rf.GetState()
-	reply.IsLeader = false;
-	if !isLeader{
+	_ , reply.IsLeader = kv.rf.GetState()
+	//reply.IsLeader = false;
+	if !reply.IsLeader{
 		return reply, nil
 	}
 	oringalOp := Op{args.Op, args.Key,args.Value, args.Id, args.Seq}
 	index, _, isLeader := kv.rf.Start(oringalOp)
 	if !isLeader {
+		fmt.Println("Leader Changed !")
+		reply.IsLeader = false
 		return reply, nil
 	}
 	fmt.Println(index)
 
 	return reply, nil
 
-	/* ch := kv.getChan(index)
-	op := kv.replyNotify(ch)
-	
-	if kv.equal(oringalOp , op){
-		reply.IsLeader = true
-		return
-	}  */
 }
 
 
@@ -74,11 +70,13 @@ func (kv *KVServer) PutAppend(ctx context.Context,args *KV.PutAppendArgs) ( *KV.
 func (kv *KVServer) Get(ctx context.Context, args *KV.GetArgs) ( *KV.GetReply, error){
 	
 	reply := &KV.GetReply{}
+	reply.IsLeader = true;
 	reply.Value = "TestString"
 
 	_ , isLeader := kv.rf.GetState()
-	reply.IsLeader = false;
+	
 	if !isLeader{
+		reply.IsLeader = false;
 		return reply, nil
 	} 
 	oringalOp := Op{"Get", args.Key,"" , 0, 0}
@@ -87,18 +85,8 @@ func (kv *KVServer) Get(ctx context.Context, args *KV.GetArgs) ( *KV.GetReply, e
 		return reply, nil
 	}
 	fmt.Println(index)
+
 	return reply, nil
-	/*  
-	ch := kv.getChan(index)
-	op := kv.replyNotify(ch)
-	if args.Key == op.Key{
-		reply.IsLeader = true
-		kv.mu.Lock()
-		reply.Value = kv.db[args.Key]
-		kv.mu.Unlock()
-		return
-	} 
-	*/
 }
 
 
@@ -117,7 +105,7 @@ func (kv *KVServer) RegisterServer(address string)  {
 			log.Fatalf("failed to listen: %v", err)
 		}
 		s := grpc.NewServer()
-		KV.RegisterKVServer(s, kv /* &Raft{} */)
+		KV.RegisterKVServer(s, kv )
 		// Register reflection service on gRPC server.
 		reflection.Register(s)
 		if err := s.Serve(lis); err != nil {
@@ -130,15 +118,28 @@ func (kv *KVServer) RegisterServer(address string)  {
 
 
 
-
-
-
 func main()  {
-	server := KVServer{}
-	go server.RegisterServer("localhost:4000")
-	fmt.Println(os.Args)
-	server.rf = myraft.MakeRaft(os.Args)
 
+	var add = flag.String("address", "", "Input Your address")
+	var mems = flag.String("members", "", "Input Your follower")
+	flag.Parse()
+
+
+	// Local address	
+	address := *add
+
+
+	// Members's address
+	members := strings.Split( *mems, ",")
+
+
+	fmt.Println(address, members)
+
+
+	server := KVServer{}
+	go server.RegisterServer(address+"1")
+	server.rf = myraft.MakeRaft(address , members )
+ 
 	time.Sleep(time.Second*1200)
 
 }
