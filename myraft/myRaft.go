@@ -14,7 +14,8 @@ import (
 	"time"
 	"math/rand"
 	"../labgob"
-	"bytes"
+    "bytes"
+    "sort"
 	//"os"
 )
 
@@ -36,7 +37,7 @@ type Log struct {
 type ApplyMsg struct {
     CommandValid bool
     Command      interface{}
-    CommandIndex int
+    CommandIndex int32
 }
 
 type Raft struct {
@@ -114,6 +115,48 @@ func (rf *Raft) getLastLogTerm() int32 {
 }
 
 
+
+
+type IntSlice []int32
+ 
+ 
+ 
+func (s IntSlice) Len() int { return len(s) }
+ 
+func (s IntSlice) Swap(i, j int){ s[i], s[j] = s[j], s[i] }
+ 
+func (s IntSlice) Less(i, j int) bool { return s[i] < s[j] }
+
+
+//If there exists an N such that N > commitIndex,
+// a majority of matchIndex[i] ≥ N, and log[N].term == currentTerm: set commitIndex = N (§5.3, §5.4).
+func (rf *Raft) updateCommitIndex() {
+    rf.matchIndex[rf.me] =int32( len(rf.log) - 1)
+    copyMatchIndex := make([]int32,len(rf.matchIndex))
+    copy(copyMatchIndex,rf.matchIndex)
+    sort.Sort(sort.Reverse(IntSlice(copyMatchIndex)))
+    N := int32( copyMatchIndex[len(copyMatchIndex)/2] )
+    if N > rf.commitIndex && rf.log[N].Term == rf.currentTerm {
+        rf.commitIndex = N
+        rf.updateLastApplied()
+    }
+}
+
+func (rf *Raft) updateLastApplied() {
+    for rf.lastApplied < rf.commitIndex {
+        rf.lastApplied++
+        curLog := rf.log[rf.lastApplied]
+        applyMsg := ApplyMsg{
+            true,
+            curLog.Command,
+            rf.lastApplied,
+        }
+       fmt.Println("Apply msg :", applyMsg)
+        // rf.applyCh <- applyMsg
+    }
+}
+
+
  
 func (rf *Raft) RequestVote(ctx context.Context, args *RPC.RequestVoteArgs) ( *RPC.RequestVoteReply, error ) {
    /*  rf.mu.Lock()
@@ -145,7 +188,85 @@ func (rf *Raft) RequestVote(ctx context.Context, args *RPC.RequestVoteArgs) ( *R
 } 
 
 
- 
+
+//AppendEntries RPC handler.
+func (rf *Raft) AppendEntries(ctx context.Context, args *RPC.AppendEntriesArgs) {//now only for heartbeat
+    rf.mu.Lock()
+    defer rf.mu.Unlock()
+    defer send(rf.appendLogCh) //If election timeout elapses without receiving AppendEntries RPC from current leader
+    if args.Term > rf.currentTerm { //all server rule 1 If RPC request or response contains term T > currentTerm:
+        rf.beFollower(args.Term) // set currentTerm = T, convert to follower (§5.1)
+    }
+    reply := &RPC.AppendEntriesReply{}
+
+    reply.Term = rf.currentTerm
+    reply.Success = false
+    reply.ConflictTerm = NULL
+    reply.ConflictIndex = 0
+    //1. Reply false if log doesn’t contain an entry at prevLogIndex whose term matches prevLogTerm (§5.3)
+    var prevLogIndexTerm int32 = -1
+    var logSize int32 = int32(len(rf.log))
+    if args.PrevLogIndex >= 0 && args.PrevLogIndex < int32(len(rf.log)) {
+        prevLogIndexTerm = rf.log[args.PrevLogIndex].Term
+    }
+    if prevLogIndexTerm != args.PrevLogTerm {
+        reply.ConflictIndex = logSize
+        if prevLogIndexTerm == -1 {//If a follower does not have prevLogIndex in its log,
+            //it should return with conflictIndex = len(log) and conflictTerm = None.
+        } else { //If a follower does have prevLogIndex in its log, but the term does not match
+            reply.ConflictTerm = prevLogIndexTerm //it should return conflictTerm = log[prevLogIndex].Term,
+            i := int32(0)
+            for ; i < logSize; i++ {//and then search its log for
+                if rf.log[i].Term == reply.ConflictTerm {//the first index whose entry has term equal to conflictTerm
+                    reply.ConflictIndex = i
+                    break
+                }
+            }
+        }
+        return
+    }
+    
+    r := bytes.NewBuffer(args.Log)
+    d := labgob.NewDecoder(r)
+	var log []Log 
+	d.Decode(&log)
+
+    
+    //2. Reply false if term < currentTerm (§5.1)
+    if args.Term < rf.currentTerm {return}
+    
+    index := args.PrevLogIndex
+    for i := 0; i < len(log); i++ {
+        index++
+        if index < logSize {
+            if rf.log[index].Term == log[i].Term {
+                continue
+            } else {//3. If an existing entry conflicts with a new one (same index but different terms),
+                rf.log = rf.log[:index]//delete the existing entry and all that follow it (§5.3)
+            }
+        }
+        rf.log = append(rf.log,log[i:]...) //4. Append any new entries not already in the log
+       // rf.persist()
+        break;
+    }
+    //5. If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
+    if args.LeaderCommit > rf.commitIndex {
+        rf.commitIndex = Min(args.LeaderCommit ,rf.getLastLogIdx())
+        rf.updateLastApplied()
+    }
+    reply.Success = true
+}
+
+
+func  Min(a int32, b int32) int32 {
+	if a > b{
+		return b
+	}
+	return a
+}
+
+// debug 
+/*
 func (rf *Raft)AppendEntries(ctx context.Context, args *RPC.AppendEntriesArgs) (*RPC.AppendEntriesReply, error) {
 	
 	r := bytes.NewBuffer(args.Log)
@@ -153,8 +274,6 @@ func (rf *Raft)AppendEntries(ctx context.Context, args *RPC.AppendEntriesArgs) (
 	var log []Log 
 	d.Decode(&log) 	
     
-//	fmt.Println("AppendEntries CALL",log )
-
 	reply := &RPC.AppendEntriesReply{}
 	//rf.currentTerm ++
 	reply.Term = rf.currentTerm 
@@ -177,6 +296,9 @@ func (rf *Raft)AppendEntries(ctx context.Context, args *RPC.AppendEntriesArgs) (
 		return reply, nil
 	}
 }
+
+*/
+
 
 
 func (rf *Raft) RegisterServer(address string)  {
@@ -294,7 +416,6 @@ func (rf *Raft) GetState() (int32, bool) {
 
 //If election timeout elapses: start new election handled in caller
 func (rf *Raft) startElection() {
-
 	args := RPC.RequestVoteArgs{
         Term: rf.currentTerm,
         CandidateId: rf.me,
@@ -302,9 +423,8 @@ func (rf *Raft) startElection() {
         LastLogTerm: rf.getLastLogTerm(),
 
 	};
-
 	// TODO.....
-	 var votes int32 = 1;
+	var votes int32 = 1;
     for i := 0; i < len(rf.members); i++ {
         if rf.address == rf.members[i] {
             continue
@@ -332,7 +452,6 @@ func (rf *Raft) startElection() {
 				}else{
 				//	fmt.Println( "#########reply.VoteGranted false ", reply.Term)
 				}
-				
                 if atomic.LoadInt32(&votes) > int32(len(rf.members) / 2) {
 					rf.beLeader()
 					//fmt.Println("rf.beLeader()")
@@ -363,7 +482,6 @@ func (rf *Raft) init () {
 	rf.persist = &Per.Persister{}
 //	fmt.Println("#############", "../db/"+add)
 	rf.persist.Init("../db/"+rf.address)
-
 
 	heartbeatTime := time.Duration(150) * time.Millisecond
 	go func() {
@@ -426,9 +544,6 @@ func (rf *Raft) Start(command interface{}) (int32, int32, bool) {
 
 
 func (rf *Raft) sendAppendEntries(address string , args  *RPC.AppendEntriesArgs){
-
-//	fmt.Println("StartAppendEntries")
-
 	// Initialize Client
 	conn, err := grpc.Dial( address , grpc.WithInsecure(),grpc.WithBlock())
 	if err != nil {
@@ -445,14 +560,10 @@ func (rf *Raft) sendAppendEntries(address string , args  *RPC.AppendEntriesArgs)
 	if err != nil {
 		log.Printf("could not greet: %v", err)
 	}
-
-//	log.Printf("Append reply: %s", r)
-	//fmt.Println("Append name is ABC")
 }
 
 
 func (rf *Raft) sendRequestVote(address string ,args *RPC.RequestVoteArgs) (bool ,  *RPC.RequestVoteReply){
-
 	//fmt.
 	// Initialize Client
 	conn, err := grpc.Dial( address , grpc.WithInsecure(), grpc.WithBlock())
@@ -487,8 +598,6 @@ func MakeRaft(add string ,mem []string) *Raft {
 
 
 	raft.address = add
-
- 	
 	raft.members = make([]string, len(mem))
 	for i:= 0; i < len(mem)  ; i++{
 		raft.members[i] = mem[i]
