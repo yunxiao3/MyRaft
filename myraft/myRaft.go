@@ -189,6 +189,103 @@ func (rf *Raft) RequestVote(ctx context.Context, args *RPC.RequestVoteArgs) ( *R
 
 
 
+
+//Leader Section:
+func (rf *Raft) startAppendLog() {
+    for i := 0; i < len(rf.members); i++ {
+        go func(idx int) {
+            for {
+                rf.mu.Lock();
+                if rf.state != Leader {
+                    rf.mu.Unlock()
+                    return
+                } //send initial empty AppendEntries RPCs (heartbeat) to each server
+                
+                appendLog := rf.log[rf.nextIndex[idx]:]
+               
+
+                
+               
+                w := new(bytes.Buffer)
+                e := labgob.NewEncoder(w)
+                e.Encode(len(appendLog))
+
+                data := w.Bytes()
+
+
+
+                args := RPC.AppendEntriesArgs{
+                   Term: rf.currentTerm,
+                   LeaderId: rf.me,
+                   PrevLogIndex: rf.getPrevLogIdx(idx),
+                   PrevLogTerm: rf.getPrevLogTerm(idx),
+                    //If last log index ≥ nextIndex for a follower:send AppendEntries RPC with log entries starting at nextIndex
+                    //nextIndex > last log index, rf.log[rf.nextIndex[idx]:] will be empty then like a heartbeat
+                    Log: data,
+                    LeaderCommit: rf.commitIndex,
+                }
+                rf.mu.Unlock()
+                 //:= &RPC.AppendEntriesReply{}
+                reply, ret := rf.sendAppendEntries(rf.members[idx], &args)
+                rf.mu.Lock();
+                if !ret || rf.state != Leader || rf.currentTerm != args.Term {
+                    rf.mu.Unlock()
+                    return
+                }
+                if reply.Term > rf.currentTerm {//all server rule 1 If RPC response contains term T > currentTerm:
+                    rf.beFollower(reply.Term) // set currentTerm = T, convert to follower (§5.1)
+                    rf.mu.Unlock()
+                    return
+                }
+                if reply.Success {//If successful：update nextIndex and matchIndex for follower
+                    rf.matchIndex[idx] = args.PrevLogIndex + int32(len(appendLog))
+                    rf.nextIndex[idx] = rf.matchIndex[idx] + 1
+                    rf.updateCommitIndex()
+                    rf.mu.Unlock()
+                    return
+                } else { //If AppendEntries fails because of log inconsistency: decrement nextIndex and retry
+                    tarIndex := reply.ConflictIndex //If it does not find an entry with that term
+                    if reply.ConflictTerm != NULL {
+                        logSize := len(rf.log) //first search its log for conflictTerm
+                        for i := 0; i < logSize; i++ {//if it finds an entry in its log with that term,
+                            if rf.log[i].Term != reply.ConflictTerm { continue }
+                            for i < logSize && rf.log[i].Term == reply.ConflictTerm { i++ }//set nextIndex to be the one
+                            tarIndex = int32(i) //beyond the index of the last entry in that term in its log
+                        }
+                    }
+                    rf.nextIndex[idx] = tarIndex;
+                    rf.mu.Unlock()
+				}
+			}	
+        }(i)
+    }
+}
+
+
+
+func (rf *Raft) sendAppendEntries(address string , args  *RPC.AppendEntriesArgs)(*RPC.AppendEntriesReply,bool){
+	// Initialize Client
+	conn, err := grpc.Dial( address , grpc.WithInsecure(),grpc.WithBlock())
+	if err != nil {
+		log.Fatalf("did not connect: %v", err)
+	}
+	defer conn.Close()
+	rf.client = RPC.NewRAFTClient(conn)
+
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	//args := &RPC.AppendEntriesArgs{}
+	reply, err := rf.client.AppendEntries(ctx,args)
+	if err != nil {
+        log.Printf("could not greet: %v", err)
+        return reply ,false
+    }
+    return reply ,true
+}
+
+
+
 //AppendEntries RPC handler.
 func (rf *Raft) AppendEntries(ctx context.Context, args *RPC.AppendEntriesArgs) (*RPC.AppendEntriesReply, error) {//now only for heartbeat
     rf.mu.Lock()
@@ -228,10 +325,13 @@ func (rf *Raft) AppendEntries(ctx context.Context, args *RPC.AppendEntriesArgs) 
     
     r := bytes.NewBuffer(args.Log)
     d := labgob.NewDecoder(r)
-	var log []Log 
-	d.Decode(&log)
-
+	var loglen int
+    d.Decode(&loglen)
     
+    log := make([]Log,loglen)
+
+
+    fmt.Println(args.Term,"Append Log ",log)
     //2. Reply false if term < currentTerm (§5.1)
     if args.Term < rf.currentTerm {
         return reply, nil
@@ -362,94 +462,6 @@ func (rf *Raft) beCandidate() { //Reset election timer are finished in caller
     go rf.startElection() //Send RequestVote RPCs to all other servers
 }
 
-
-
-//Leader Section:
-func (rf *Raft) startAppendLog() {
-    for i := 0; i < len(rf.members); i++ {
-        go func(idx int) {
-            for {
-                rf.mu.Lock();
-                if rf.state != Leader {
-                    rf.mu.Unlock()
-                    return
-                } //send initial empty AppendEntries RPCs (heartbeat) to each server
-                
-                appendLog := rf.log[rf.nextIndex[idx]:]
-                w := new(bytes.Buffer)
-                e := labgob.NewEncoder(w)
-                e.Encode(appendLog)
-                data := w.Bytes()
-
-                args := RPC.AppendEntriesArgs{
-                   Term: rf.currentTerm,
-                   LeaderId: rf.me,
-                   PrevLogIndex: rf.getPrevLogIdx(idx),
-                   PrevLogTerm: rf.getPrevLogTerm(idx),
-                    //If last log index ≥ nextIndex for a follower:send AppendEntries RPC with log entries starting at nextIndex
-                    //nextIndex > last log index, rf.log[rf.nextIndex[idx]:] will be empty then like a heartbeat
-                    Log: data,
-                    LeaderCommit: rf.commitIndex,
-                }
-                rf.mu.Unlock()
-                 //:= &RPC.AppendEntriesReply{}
-                 reply, ret := rf.sendAppendEntries(rf.members[idx], &args)
-                rf.mu.Lock();
-                if !ret || rf.state != Leader || rf.currentTerm != args.Term {
-                    rf.mu.Unlock()
-                    return
-                }
-                if reply.Term > rf.currentTerm {//all server rule 1 If RPC response contains term T > currentTerm:
-                    rf.beFollower(reply.Term) // set currentTerm = T, convert to follower (§5.1)
-                    rf.mu.Unlock()
-                    return
-                }
-                if reply.Success {//If successful：update nextIndex and matchIndex for follower
-                    rf.matchIndex[idx] = args.PrevLogIndex + int32(len(appendLog))
-                    rf.nextIndex[idx] = rf.matchIndex[idx] + 1
-                    rf.updateCommitIndex()
-                    rf.mu.Unlock()
-                    return
-                } else { //If AppendEntries fails because of log inconsistency: decrement nextIndex and retry
-                    tarIndex := reply.ConflictIndex //If it does not find an entry with that term
-                    if reply.ConflictTerm != NULL {
-                        logSize := len(rf.log) //first search its log for conflictTerm
-                        for i := 0; i < logSize; i++ {//if it finds an entry in its log with that term,
-                            if rf.log[i].Term != reply.ConflictTerm { continue }
-                            for i < logSize && rf.log[i].Term == reply.ConflictTerm { i++ }//set nextIndex to be the one
-                            tarIndex = int32(i) //beyond the index of the last entry in that term in its log
-                        }
-                    }
-                    rf.nextIndex[idx] = tarIndex;
-                    rf.mu.Unlock()
-				}
-			}	
-        }(i)
-    }
-}
-
-
-
-func (rf *Raft) sendAppendEntries(address string , args  *RPC.AppendEntriesArgs)(*RPC.AppendEntriesReply,bool){
-	// Initialize Client
-	conn, err := grpc.Dial( address , grpc.WithInsecure(),grpc.WithBlock())
-	if err != nil {
-		log.Fatalf("did not connect: %v", err)
-	}
-	defer conn.Close()
-	rf.client = RPC.NewRAFTClient(conn)
-
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	//args := &RPC.AppendEntriesArgs{}
-	reply, err := rf.client.AppendEntries(ctx,args)
-	if err != nil {
-        log.Printf("could not greet: %v", err)
-        return reply ,false
-    }
-    return reply ,true
-}
 
 
 // Debug 
@@ -632,7 +644,7 @@ func (rf *Raft) Start(command interface{}) (int32, int32, bool) {
         rf.log = append(rf.log,newLog)
        // rf.persist()
 	}
-	fmt.Println(rf.log)
+	//fmt.Println("new Log",  rf.log)
     return index, term, isLeader
 }
 

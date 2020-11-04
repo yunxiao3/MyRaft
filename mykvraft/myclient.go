@@ -135,11 +135,13 @@ func main()  {
 	ck.servers[0] = "localhost:50011"
 	ck.servers[1] = "localhost:50001"
 
-	for i := 0; i < 10 ; i++ {
-		fmt.Println( ck.Get("get") )
+	for i := 0; i < 1 ; i++ {
+		//fmt.Println( ck.Get("get") )
 
-		time.Sleep(time.Second*1)
+		//time.Sleep(time.Second*1)
 		ck.Put("key","value")
 	}
+
+	fmt.Println("done!")
 
 }
