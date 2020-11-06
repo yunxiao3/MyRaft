@@ -13,19 +13,10 @@ import (
 	"time"
 	"strings"
 	"fmt"
+	config "../config"
 	KV "../grpc/mykv"
 )
 
-type Op struct {
-	// Your definitions here.
-	// Field names must start with capital letters,
-	// otherwise RPC will break.
-	Option string
-	Key string 
-	Value string
-	Id int64
-	Seq int64
-}
 
 
 
@@ -40,7 +31,7 @@ type KVServer struct {
 	// Your definitions here.
 	Seq map[int64]int64
 	db map[string]string
-	chMap map[int]chan Op
+	chMap map[int]chan config.Op
 }
 
 
@@ -52,7 +43,7 @@ func (kv *KVServer) PutAppend(ctx context.Context,args *KV.PutAppendArgs) ( *KV.
 	if !reply.IsLeader{
 		return reply, nil
 	}
-	oringalOp := Op{args.Op, args.Key,args.Value, args.Id, args.Seq}
+	oringalOp := config.Op{args.Op, args.Key,args.Value, args.Id, args.Seq}
 	index, _, isLeader := kv.rf.Start(oringalOp)
 	if !isLeader {
 		fmt.Println("Leader Changed !")
@@ -79,7 +70,7 @@ func (kv *KVServer) Get(ctx context.Context, args *KV.GetArgs) ( *KV.GetReply, e
 		reply.IsLeader = false;
 		return reply, nil
 	} 
-	oringalOp := Op{"Get", args.Key,"" , 0, 0}
+	oringalOp := config.Op{"Get", args.Key,"" , 0, 0}
 	index, _, isLeader  := kv.rf.Start(oringalOp)
 	if !isLeader {
 		return reply, nil
@@ -90,7 +81,7 @@ func (kv *KVServer) Get(ctx context.Context, args *KV.GetArgs) ( *KV.GetReply, e
 }
 
 
-func (kv *KVServer) equal(a Op, b Op) bool  {
+func (kv *KVServer) equal(a config.Op, b config.Op) bool  {
 	return (a.Option == b.Option && a.Key == b.Key &&a.Value == b.Value) 
 }
 

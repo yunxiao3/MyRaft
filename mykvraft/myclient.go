@@ -4,12 +4,16 @@ import (
 	"log"
 	"time"
 	"fmt"
+	//"strconv"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	//"google.golang.org/grpc/reflection"
 	crand "crypto/rand"
 	"math/big"
 	KV "../grpc/mykv"
+	"strconv"
+	//Per "../persister"
+
 	//"math/rand"
 )
 type Clerk struct {
@@ -131,17 +135,24 @@ func (ck *Clerk) putAppendValue(address string , args  *KV.PutAppendArgs) (*KV.P
 
 func main()  {
 	ck := Clerk{}
-	ck.servers = make([]string, 2) 
+	ck.servers = make([]string, 3) 
 	ck.servers[0] = "localhost:50011"
 	ck.servers[1] = "localhost:50001"
+	ck.servers[1] = "localhost:50021"
 
-	for i := 0; i < 1 ; i++ {
-		//fmt.Println( ck.Get("get") )
-
-		//time.Sleep(time.Second*1)
-		ck.Put("key","value")
+ 	for i := 0; i < 3 ; i++ {
+		ck.Put("key" + strconv.Itoa(i),"value")
 	}
 
+ 
+
 	fmt.Println("done!")
+
+	/* 
+	persist := &Per.Persister{}
+	persist.Init("../db/"+"localhost:5001")
+	persist.PrintStrVal("key1")
+	*/
+//	fmt.Println( string(value) ) 
 
 }

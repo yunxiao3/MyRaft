@@ -12,10 +12,13 @@ import (
 	"fmt"
 	"sync/atomic"
 	"time"
-	"math/rand"
-	"../labgob"
-    "bytes"
+    "math/rand"
+    "encoding/json"
+	//"../labgob"
+    //"bytes"
     "sort"
+    config "../config"
+
 	//"os"
 )
 
@@ -30,7 +33,8 @@ const NULL int32 = -1
 
 type Log struct {
     Term    int32       //  "term when entry was received by leader"
-    Command interface{} //"command for state machine,"
+    // Debug 原来是interface{}类型，但是因为json序列化和反序列化时Command类型转化有问题
+    Command  config.Op  //"command for state machine,"
 }
 
 
@@ -116,15 +120,10 @@ func (rf *Raft) getLastLogTerm() int32 {
 
 
 
-
+// Add to sort int32 
 type IntSlice []int32
- 
- 
- 
 func (s IntSlice) Len() int { return len(s) }
- 
 func (s IntSlice) Swap(i, j int){ s[i], s[j] = s[j], s[i] }
- 
 func (s IntSlice) Less(i, j int) bool { return s[i] < s[j] }
 
 
@@ -142,16 +141,34 @@ func (rf *Raft) updateCommitIndex() {
     }
 }
 
+
+type Op struct {
+	// Your definitions here.
+	// Field names must start with capital letters,
+	// otherwise RPC will break.
+	Option string
+	Key string 
+	Value string
+	Id int64
+	Seq int64
+}
+
 func (rf *Raft) updateLastApplied() {
     for rf.lastApplied < rf.commitIndex {
         rf.lastApplied++
         curLog := rf.log[rf.lastApplied]
-        applyMsg := ApplyMsg{
+       /*  applyMsg := ApplyMsg{
             true,
             curLog.Command,
             rf.lastApplied,
+        } */
+        m := curLog.Command//.(config.Op)
+        if m.Option == "Put"{
+            fmt.Println("Put key value :", m.Key, m.Value)//, curLog.Command.(config.Op).Key,"value",curLog.Command.(config.Op).Value  )
+            rf.persist.Put(m.Key, m.Value)
+            rf.persist.PrintStrVal("key1")
         }
-       fmt.Println("Apply msg :", applyMsg)
+      
         // rf.applyCh <- applyMsg
     }
 }
@@ -202,15 +219,16 @@ func (rf *Raft) startAppendLog() {
                 } //send initial empty AppendEntries RPCs (heartbeat) to each server
                 
                 appendLog := rf.log[rf.nextIndex[idx]:]
+                data, _ := json.Marshal(appendLog)
+                if len(appendLog) > 0{
+                    fmt.Println(appendLog)
+                }
                
-
-                
-               
-                w := new(bytes.Buffer)
+                /* w := new(bytes.Buffer)
                 e := labgob.NewEncoder(w)
                 e.Encode(len(appendLog))
 
-                data := w.Bytes()
+                data := w.Bytes() */
 
 
 
@@ -323,15 +341,22 @@ func (rf *Raft) AppendEntries(ctx context.Context, args *RPC.AppendEntriesArgs) 
         return reply, nil
     }
     
-    r := bytes.NewBuffer(args.Log)
+
+    var log []Log
+	json.Unmarshal(args.Log,&log)
+
+    /* r := bytes.NewBuffer(args.Log)
     d := labgob.NewDecoder(r)
 	var loglen int
     d.Decode(&loglen)
     
     log := make([]Log,loglen)
+ */
+    if len(log) > 0{
+        fmt.Println(args.Term,"Append Log ",log)//.(config.Op))
+    }
 
 
-    fmt.Println(args.Term,"Append Log ",log)
     //2. Reply false if term < currentTerm (§5.1)
     if args.Term < rf.currentTerm {
         return reply, nil
@@ -349,6 +374,7 @@ func (rf *Raft) AppendEntries(ctx context.Context, args *RPC.AppendEntriesArgs) 
         }
         rf.log = append(rf.log,log[i:]...) //4. Append any new entries not already in the log
        // rf.persist()
+       //fmt.Println(args.Term,"Append RAft Log ",rf.log)
         break;
     }
     //5. If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
@@ -436,9 +462,7 @@ func (rf *Raft) beLeader() {
 
 	if rf.state != Candidate {
         return
-	}else{
-		fmt.Println("rf.state == Candidate")
-	} 	
+	}
     rf.state = Leader
     //initialize leader data
     rf.nextIndex = make([]int32,len(rf.members))
@@ -446,7 +470,7 @@ func (rf *Raft) beLeader() {
     for i := 0; i < len(rf.nextIndex); i++ {//(initialized to leader last log index + 1)
         rf.nextIndex[i] = rf.getLastLogIdx() + 1
 	}
-	fmt.Println(rf.me,"#####become LEADER####",  rf.state == Leader)
+	fmt.Println(rf.address,"#####become LEADER####",  rf.currentTerm)
 }
 
 
@@ -457,7 +481,6 @@ func (rf *Raft) beCandidate() { //Reset election timer are finished in caller
 	rf.state = Candidate
     rf.currentTerm++ //Increment currentTerm
     rf.votedFor = rf.me //vote myself first
-    //rf.persist()
     //ask for other's vote
     go rf.startElection() //Send RequestVote RPCs to all other servers
 }
@@ -587,7 +610,6 @@ func (rf *Raft) init () {
     rf.killCh = make(chan bool,1)
 
 	rf.persist = &Per.Persister{}
-//	fmt.Println("#############", "../db/"+add)
 	rf.persist.Init("../db/"+rf.address)
 
 	heartbeatTime := time.Duration(150) * time.Millisecond
@@ -598,7 +620,7 @@ func (rf *Raft) init () {
                 return
             default:
             }
-            electionTime := time.Duration(rand.Intn(200) + 300) * time.Millisecond
+            electionTime := time.Duration(rand.Intn(350) + 300) * time.Millisecond
 
            // rf.mu.Lock()
             state := rf.state
@@ -610,11 +632,11 @@ func (rf *Raft) init () {
                 case <-rf.appendLogCh:
                 case <-time.After(electionTime):
                 //    rf.mu.Lock()
+                    fmt.Println("######## time.After(electionTime) #######")
                     rf.beCandidate() //becandidate, Reset election timer, then start election
                 //    rf.mu.Unlock()
                 }
 			case Leader:
-			//	rf.Start(nil)
                 rf.startAppendLog()
                 time.Sleep(heartbeatTime )
             }
@@ -639,7 +661,7 @@ func (rf *Raft) Start(command interface{}) (int32, int32, bool) {
         index = rf.getLastLogIdx() + 1
         newLog := Log{
             rf.currentTerm,
-            command,
+            command.(config.Op),
         }
         rf.log = append(rf.log,newLog)
        // rf.persist()
