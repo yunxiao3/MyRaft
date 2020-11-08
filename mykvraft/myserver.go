@@ -13,6 +13,7 @@ import (
 	"time"
 	"strings"
 	"fmt"
+	Per "../persister"
 	config "../config"
 	KV "../grpc/mykv"
 )
@@ -32,6 +33,8 @@ type KVServer struct {
 	Seq map[int64]int64
 	db map[string]string
 	chMap map[int]chan config.Op
+	persist  *Per.Persister
+
 }
 
 
@@ -61,22 +64,29 @@ func (kv *KVServer) PutAppend(ctx context.Context,args *KV.PutAppendArgs) ( *KV.
 func (kv *KVServer) Get(ctx context.Context, args *KV.GetArgs) ( *KV.GetReply, error){
 	
 	reply := &KV.GetReply{}
-	reply.IsLeader = true;
-	reply.Value = "TestString"
-
-	_ , isLeader := kv.rf.GetState()
-	
-	if !isLeader{
-		reply.IsLeader = false;
+	_ , reply.IsLeader = kv.rf.GetState()
+	//reply.IsLeader = false;
+	if !reply.IsLeader{
 		return reply, nil
-	} 
+	}
+
+	//fmt.Println()
+
+
 	oringalOp := config.Op{"Get", args.Key,"" , 0, 0}
-	index, _, isLeader  := kv.rf.Start(oringalOp)
+	_, _, isLeader  := kv.rf.Start(oringalOp)
 	if !isLeader {
 		return reply, nil
 	}
-	fmt.Println(index)
+	//fmt.Println(index)
 
+	reply.IsLeader = true
+	//kv.mu.Lock()
+	//fmt.Println("Asdsada")
+	reply.Value = string( kv.persist.Get(args.Key) )
+	//fmt.Println("Asdsada")
+
+	//kv.mu.Unlock()
 	return reply, nil
 }
 
@@ -115,10 +125,17 @@ func main()  {
 	var mems = flag.String("members", "", "Input Your follower")
 	flag.Parse()
 
+	server := KVServer{}
 
 	// Local address	
 	address := *add
 
+	persist := &Per.Persister{}
+	persist.Init("../db/"+address)
+	applyCh := make(chan int, 1)
+
+
+	server.persist  = persist
 
 	// Members's address
 	members := strings.Split( *mems, ",")
@@ -127,10 +144,11 @@ func main()  {
 	fmt.Println(address, members)
 
 
-	server := KVServer{}
+
 	go server.RegisterServer(address+"1")
-	server.rf = myraft.MakeRaft(address , members )
- 
+	server.rf = myraft.MakeRaft(address , members ,persist, &server.mu, applyCh)
+	
+
 	time.Sleep(time.Second*1200)
 
 }

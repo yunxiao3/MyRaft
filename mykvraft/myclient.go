@@ -12,6 +12,7 @@ import (
 	"math/big"
 	KV "../grpc/mykv"
 	"strconv"
+	"math/rand"
 	//Per "../persister"
 
 	//"math/rand"
@@ -70,11 +71,12 @@ func (ck *Clerk) getValue(address string , args  *KV.GetArgs) (*KV.GetReply, boo
 	}
 	defer conn.Close()
 	client := KV.NewKVClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second * 10)
 	defer cancel()
 	reply, err := client.Get(ctx,args)
 	if err != nil {
-		log.Printf("could not greet: %v", err)
+
+		log.Printf(" getValue could not greet: %v", err)
 	}
 	return reply, true
 }
@@ -120,11 +122,11 @@ func (ck *Clerk) putAppendValue(address string , args  *KV.PutAppendArgs) (*KV.P
 	}
 	defer conn.Close()
 	client := KV.NewKVClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second * 10)
 	defer cancel()
 	reply, err := client.PutAppend(ctx,args)
 	if err != nil {
-		log.Printf("could not greet: %v", err)
+		log.Printf("  putAppendValue could not greet: %v", err)
 	}
 	return reply, true
 }
@@ -132,27 +134,40 @@ func (ck *Clerk) putAppendValue(address string , args  *KV.PutAppendArgs) (*KV.P
 
 
 
+var count int
 
-func main()  {
+func request(num int)  {
 	ck := Clerk{}
 	ck.servers = make([]string, 3) 
 	ck.servers[0] = "localhost:50011"
 	ck.servers[1] = "localhost:50001"
 	ck.servers[1] = "localhost:50021"
 
- 	for i := 0; i < 3 ; i++ {
-		ck.Put("key" + strconv.Itoa(i),"value")
+
+ 	for i := 0; i < 1000 ; i++ {
+		rand.Seed(time.Now().UnixNano())
+		key := rand.Intn(100000)
+		value := rand.Intn(100000)
+		ck.Put("key" + strconv.Itoa(key),"value"+ strconv.Itoa(value) )
+		//fmt.Println(num, ck.Get("key1" ) )
+		count++
 	}
+}
 
- 
 
-	fmt.Println("done!")
+func main()  {
+	servers := 10
+	//begin_time := time.Now().UnixNano()
+	for i := 0; i < servers ; i++ {
+		go request(i)		
+	}
+	//end_time := time.Now().UnixNano()
 
-	/* 
-	persist := &Per.Persister{}
-	persist.Init("../db/"+"localhost:5001")
-	persist.PrintStrVal("key1")
-	*/
-//	fmt.Println( string(value) ) 
+	//t := end_time - begin_time
+	time.Sleep(time.Second)
+	fmt.Println( count )
+
+	time.Sleep(time.Second*1200)
+
 
 }

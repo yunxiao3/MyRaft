@@ -450,7 +450,7 @@ func (rf *Raft) L2FsendAppendEntries(address string , args  *RPC.AppendEntriesAr
 	defer cancel()
 	r, err := rf.client.AppendEntries(ctx,args)
 	if err != nil {
-		log.Fatalf("could not greet: %v", err)
+		log.Printf("could not greet: %v", err)
 	}
 	log.Printf("Append reply: %s", r)
 }

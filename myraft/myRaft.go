@@ -45,7 +45,7 @@ type ApplyMsg struct {
 }
 
 type Raft struct {
-    mu        sync.Mutex          // Lock to protect shared access to this peer's state
+    mu        *sync.Mutex          // Lock to protect shared access to this peer's state
    // peers     []*labrpc.ClientEnd // RPC end points of all peers
    // persister *Persister          // Object to hold this peer's persisted state
     me        int32                 // this peer's index into peers[]
@@ -67,7 +67,7 @@ type Raft struct {
     matchIndex  []int32 // "for each server,index of highest log entry known to be replicated on server(initialized to 0, im)"
 
     //channel
-    applyCh     chan ApplyMsg // from Make()
+    applyCh     chan int // from Make()
     killCh      chan bool //for Kill()
     //handle rpc
     voteCh      chan bool
@@ -165,8 +165,10 @@ func (rf *Raft) updateLastApplied() {
         m := curLog.Command//.(config.Op)
         if m.Option == "Put"{
             fmt.Println("Put key value :", m.Key, m.Value)//, curLog.Command.(config.Op).Key,"value",curLog.Command.(config.Op).Value  )
+          //  rf.mu.Lock()
             rf.persist.Put(m.Key, m.Value)
-            rf.persist.PrintStrVal("key1")
+          //  rf.mu.Unlock()
+           // rf.persist.PrintStrVal("key1")
         }
       
         // rf.applyCh <- applyMsg
@@ -609,8 +611,7 @@ func (rf *Raft) init () {
     rf.appendLogCh = make(chan bool,1)
     rf.killCh = make(chan bool,1)
 
-	rf.persist = &Per.Persister{}
-	rf.persist.Init("../db/"+rf.address)
+	
 
 	heartbeatTime := time.Duration(150) * time.Millisecond
 	go func() {
@@ -665,6 +666,8 @@ func (rf *Raft) Start(command interface{}) (int32, int32, bool) {
         }
         rf.log = append(rf.log,newLog)
        // rf.persist()
+       rf.startAppendLog()
+
 	}
 	//fmt.Println("new Log",  rf.log)
     return index, term, isLeader
@@ -699,14 +702,19 @@ func (rf *Raft) sendRequestVote(address string ,args *RPC.RequestVoteArgs) (bool
 }
 
 
-func MakeRaft(add string ,mem []string) *Raft {
+func MakeRaft(add string ,mem []string, persist *Per.Persister, 
+    mu *sync.Mutex, applyCh chan int) *Raft {
 	raft := &Raft{}
 	if (len(mem) <= 1 ){
 		panic("#######Address is less 1, you should set follower's address!######")
 	}
 
 
-	raft.address = add
+    raft.address = add
+    raft.persist = persist
+    raft.applyCh = applyCh
+    raft.mu = mu
+
 	raft.members = make([]string, len(mem))
 	for i:= 0; i < len(mem)  ; i++{
 		raft.members[i] = mem[i]
