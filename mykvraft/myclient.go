@@ -4,7 +4,9 @@ import (
 	"log"
 	"time"
 	"fmt"
+	"flag"
 	//"strconv"
+	"strings"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	//"google.golang.org/grpc/reflection"
@@ -136,12 +138,14 @@ func (ck *Clerk) putAppendValue(address string , args  *KV.PutAppendArgs) (*KV.P
 
 var count int
 
-func request(num int)  {
+func request(num int, servers []string)  {
 	ck := Clerk{}
-	ck.servers = make([]string, 3) 
-	ck.servers[0] = "localhost:50011"
-	ck.servers[1] = "localhost:50001"
-	ck.servers[2] = "localhost:50021"
+	ck.servers = make([]string, len(servers)) 
+
+	for i:= 0; i <  len(servers); i++{
+		ck.servers[i] = servers[i] + "1"
+		fmt.Println(ck.servers[i])
+	}
 
 
  	for i := 0; i < 10 ; i++ {
@@ -157,14 +161,19 @@ func request(num int)  {
 
 
 func main()  {
+
+	var ser = flag.String("servers", "", "Input Your follower")
+	flag.Parse()
+	servers := strings.Split( *ser, ",")
+
 	fmt.Println( "count" )
-	servers := 10
+	serverNumm := 10
 	//begin_time := time.Now().UnixNano()
-	for i := 0; i < servers ; i++ {
+	for i := 0; i < serverNumm ; i++ {
 		//go 
-		request(i)		
+		go request(i, servers)		
 	}
-	request(1)
+	//request(1)
 	//end_time := time.Now().UnixNano()
 
 	//t := end_time - begin_time
