@@ -55,29 +55,34 @@ func (ck *Clerk) Get(key string) string {
 	args := &KV.GetArgs{Key:key}
 	id := ck.leaderId
 	for {
+		fmt.Println(id)
 		reply, ok := ck.getValue(ck.servers[id], args)
 		fmt.Println(reply.IsLeader)
 		if (ok && reply.IsLeader){
 			ck.leaderId = id;
 			return reply.Value;
+		}else{
+			fmt.Println("can not connect ", ck.servers[id], "or it's not leader")
 		}
 		id = (id + 1) % len(ck.servers) 
+		
 	} 
 }
 
 func (ck *Clerk) getValue(address string , args  *KV.GetArgs) (*KV.GetReply, bool){
 	// Initialize Client
-	conn, err := grpc.Dial( address , grpc.WithInsecure(),grpc.WithBlock())
+	conn, err := grpc.Dial( address , grpc.WithInsecure() ) //,grpc.WithBlock())
 	if err != nil {
 		log.Printf("did not connect: %v", err)
+		return nil, false
 	}
 	defer conn.Close()
 	client := KV.NewKVClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second * 10)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second * 1)
 	defer cancel()
 	reply, err := client.Get(ctx,args)
 	if err != nil {
-
+		return  nil, false
 		log.Printf(" getValue could not greet: %v", err)
 	}
 	return reply, true
@@ -90,10 +95,15 @@ func (ck *Clerk) Put(key string, value string) bool {
 	args := &KV.PutAppendArgs{Key:key,Value:value,Op:"Put", Id:ck.id, Seq:ck.seq }
 	id := ck.leaderId
 	for {
+		//fmt.Println(id)
 		reply, ok := ck.putAppendValue(ck.servers[id], args)
+		//fmt.Println(ok)
+
 		if (ok && reply.IsLeader){
 			ck.leaderId = id;
-			return true
+			return true;
+		}else{
+			fmt.Println(ok, "can not connect ", ck.servers[id], "or it's not leader")
 		}
 		id = (id + 1) % len(ck.servers) 
 	} 
@@ -118,16 +128,18 @@ func (ck *Clerk) Append(key string, value string) bool {
 
 func (ck *Clerk) putAppendValue(address string , args  *KV.PutAppendArgs) (*KV.PutAppendReply, bool){
 	// Initialize Client
-	conn, err := grpc.Dial( address , grpc.WithInsecure(),grpc.WithBlock())
+	conn, err := grpc.Dial( address , grpc.WithInsecure() )//,grpc.WithBlock())
 	if err != nil {
-		log.Printf("did not connect: %v", err)
+		return  nil, false
+		log.Printf(" did not connect: %v", err)
 	}
 	defer conn.Close()
 	client := KV.NewKVClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second * 10)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second * 1)
 	defer cancel()
 	reply, err := client.PutAppend(ctx,args)
 	if err != nil {
+		return  nil, false
 		log.Printf("  putAppendValue could not greet: %v", err)
 	}
 	return reply, true
@@ -148,7 +160,7 @@ func request(num int, servers []string)  {
 	}
 
 
- 	for i := 0; i < 10 ; i++ {
+ 	for i := 0; i < 1 ; i++ {
 		rand.Seed(time.Now().UnixNano())
 		key := "key" + strconv.Itoa(rand.Intn(100000))
 		value := "value"+ strconv.Itoa(rand.Intn(100000))
@@ -157,6 +169,11 @@ func request(num int, servers []string)  {
 		fmt.Println(i, "get   " ,ck.Get(key) )
 		count++
 	}
+}
+
+
+func requesttest()  {
+	
 }
 
 
@@ -170,10 +187,9 @@ func main()  {
 	serverNumm := 10
 	//begin_time := time.Now().UnixNano()
 	for i := 0; i < serverNumm ; i++ {
-		//go 
-		go request(i, servers)		
-	}
-	//request(1)
+	//	go  request(i, servers)		
+	} 
+	request(1 , servers)		
 	//end_time := time.Now().UnixNano()
 
 	//t := end_time - begin_time

@@ -110,6 +110,7 @@ func (kv *KVServer) RegisterServer(address string)  {
 	for{
 
 		lis, err := net.Listen("tcp", address)
+		fmt.Println(address)
 		if err != nil {
 			log.Fatalf("failed to listen: %v", err)
 		}
