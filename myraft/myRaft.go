@@ -134,9 +134,11 @@ func (s IntSlice) Less(i, j int) bool { return s[i] < s[j] }
 func (rf *Raft) updateCommitIndex() {
    // rf.matchIndex[rf.me] =int32( len(rf.log) - 1)
     copyMatchIndex := make([]int32,len(rf.matchIndex))
+    //fmt.Println(rf.matchIndex)
     copy(copyMatchIndex,rf.matchIndex)
     sort.Sort(sort.Reverse(IntSlice(copyMatchIndex)))
-    N := int32( copyMatchIndex[len(copyMatchIndex)/2] )
+    N := int32( copyMatchIndex[ (len(copyMatchIndex) - 1)/2] )
+    //fmt.Println("N: ", N)
     if N > rf.commitIndex && rf.log[N].Term == rf.currentTerm {
         rf.commitIndex = N
         rf.updateLastApplied()
@@ -385,7 +387,7 @@ func (rf *Raft) AppendEntries(ctx context.Context, args *RPC.AppendEntriesArgs) 
         }
         rf.log = append(rf.log,log[i:]...) //4. Append any new entries not already in the log
        // rf.persist()
-       //fmt.Println(args.Term,"Append RAft Log ",rf.log)
+       fmt.Println(args.Term,"Append RAft Log ",rf.log)
         break;
     }
     //5. If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
