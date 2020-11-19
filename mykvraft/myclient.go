@@ -141,26 +141,30 @@ func request(num int)  {
 	ck.servers = make([]string, 3) 
 	ck.servers[0] = "localhost:50011"
 	ck.servers[1] = "localhost:50001"
-	ck.servers[1] = "localhost:50021"
+	ck.servers[2] = "localhost:50021"
 
 
- 	for i := 0; i < 1000 ; i++ {
+ 	for i := 0; i < 10 ; i++ {
 		rand.Seed(time.Now().UnixNano())
-		key := rand.Intn(100000)
-		value := rand.Intn(100000)
-		ck.Put("key" + strconv.Itoa(key),"value"+ strconv.Itoa(value) )
-		//fmt.Println(num, ck.Get("key1" ) )
+		key := "key" + strconv.Itoa(rand.Intn(100000))
+		value := "value"+ strconv.Itoa(rand.Intn(100000))
+		ok := ck.Put(key,value)
+		fmt.Println(i ,"put   " ,value,ok )
+		fmt.Println(i, "get   " ,ck.Get(key) )
 		count++
 	}
 }
 
 
 func main()  {
+	fmt.Println( "count" )
 	servers := 10
 	//begin_time := time.Now().UnixNano()
 	for i := 0; i < servers ; i++ {
-		go request(i)		
+		//go 
+		request(i)		
 	}
+	request(1)
 	//end_time := time.Now().UnixNano()
 
 	//t := end_time - begin_time

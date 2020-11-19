@@ -25,6 +25,7 @@ type KVServer struct {
 	mu      sync.Mutex
 	me      int
 	rf      *myraft.Raft
+	applyCh chan int
 	//applyCh chan raft.ApplyMsg
 	dead    int32 // set by Kill()
 	maxraftstate int // snapshot if log grows this big
@@ -40,6 +41,9 @@ type KVServer struct {
 
 func (kv *KVServer) PutAppend(ctx context.Context,args *KV.PutAppendArgs) ( *KV.PutAppendReply, error){
 	// Your code here.
+
+
+	//time.Sleep(time.Second)
 	reply := &KV.PutAppendReply{};
 	_ , reply.IsLeader = kv.rf.GetState()
 	//reply.IsLeader = false;
@@ -53,6 +57,10 @@ func (kv *KVServer) PutAppend(ctx context.Context,args *KV.PutAppendArgs) ( *KV.
 		reply.IsLeader = false
 		return reply, nil
 	}
+
+	apply := <- kv.applyCh
+	fmt.Println(apply)
+
 	fmt.Println(index)
 
 	return reply, nil
@@ -132,8 +140,13 @@ func main()  {
 
 	persist := &Per.Persister{}
 	persist.Init("../db/"+address)
-	applyCh := make(chan int, 1)
-
+	
+	//for i := 0; i <= int (address[ len(address) - 1] - '0'); i++{
+	server.applyCh = make(chan int, 1)
+	//}
+	
+	//server.applyCh = make(chan int, 1)
+	fmt.Println(server.applyCh)
 
 	server.persist  = persist
 
@@ -146,7 +159,7 @@ func main()  {
 
 
 	go server.RegisterServer(address+"1")
-	server.rf = myraft.MakeRaft(address , members ,persist, &server.mu, applyCh)
+	server.rf = myraft.MakeRaft(address , members ,persist, &server.mu,server.applyCh)
 	
 
 	time.Sleep(time.Second*1200)

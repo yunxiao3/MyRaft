@@ -94,6 +94,8 @@ func send(ch chan bool) {
     ch <- true
 }
 
+
+
 func (rf *Raft) getPrevLogIdx(i int) int32 {
     return rf.nextIndex[i] - 1
 }
@@ -130,7 +132,7 @@ func (s IntSlice) Less(i, j int) bool { return s[i] < s[j] }
 //If there exists an N such that N > commitIndex,
 // a majority of matchIndex[i] ≥ N, and log[N].term == currentTerm: set commitIndex = N (§5.3, §5.4).
 func (rf *Raft) updateCommitIndex() {
-    rf.matchIndex[rf.me] =int32( len(rf.log) - 1)
+   // rf.matchIndex[rf.me] =int32( len(rf.log) - 1)
     copyMatchIndex := make([]int32,len(rf.matchIndex))
     copy(copyMatchIndex,rf.matchIndex)
     sort.Sort(sort.Reverse(IntSlice(copyMatchIndex)))
@@ -164,9 +166,15 @@ func (rf *Raft) updateLastApplied() {
         } */
         m := curLog.Command//.(config.Op)
         if m.Option == "Put"{
-            fmt.Println("Put key value :", m.Key, m.Value)//, curLog.Command.(config.Op).Key,"value",curLog.Command.(config.Op).Value  )
+          //  fmt.Println("Put key value :", m.Key, m.Value)//, curLog.Command.(config.Op).Key,"value",curLog.Command.(config.Op).Value  )
           //  rf.mu.Lock()
             rf.persist.Put(m.Key, m.Value)
+            if rf.state == Leader{
+                rf.applyCh <- 1
+            }
+           
+            fmt.Println("APPLY " , m.Key, m.Value)
+            
           //  rf.mu.Unlock()
            // rf.persist.PrintStrVal("key1")
         }
@@ -222,10 +230,10 @@ func (rf *Raft) startAppendLog() {
                 
                 appendLog := rf.log[rf.nextIndex[idx]:]
                 data, _ := json.Marshal(appendLog)
-                if len(appendLog) > 0{
+               /*  if len(appendLog) > 0{
                     fmt.Println(appendLog)
                 }
-               
+                */
                 /* w := new(bytes.Buffer)
                 e := labgob.NewEncoder(w)
                 e.Encode(len(appendLog))
@@ -285,7 +293,8 @@ func (rf *Raft) startAppendLog() {
 
 func (rf *Raft) sendAppendEntries(address string , args  *RPC.AppendEntriesArgs)(*RPC.AppendEntriesReply,bool){
 	// Initialize Client
-	conn, err := grpc.Dial( address , grpc.WithInsecure(),grpc.WithBlock())
+   // fmt.Println("sendAppendEntries")
+    conn, err := grpc.Dial( address , grpc.WithInsecure(),grpc.WithBlock())
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
@@ -298,7 +307,7 @@ func (rf *Raft) sendAppendEntries(address string , args  *RPC.AppendEntriesArgs)
 	//args := &RPC.AppendEntriesArgs{}
 	reply, err := rf.client.AppendEntries(ctx,args)
 	if err != nil {
-        log.Printf("could not greet: %v", err)
+        fmt.Println(" sendAppendEntries could not greet: ", err, address)
         return reply ,false
     }
     return reply ,true
@@ -354,9 +363,9 @@ func (rf *Raft) AppendEntries(ctx context.Context, args *RPC.AppendEntriesArgs) 
     
     log := make([]Log,loglen)
  */
-    if len(log) > 0{
+   /*  if len(log) > 0{
         fmt.Println(args.Term,"Append Log ",log)//.(config.Op))
-    }
+    } */
 
 
     //2. Reply false if term < currentTerm (§5.1)
@@ -548,7 +557,10 @@ func (rf *Raft) GetState() (int32, bool) {
 
 //If election timeout elapses: start new election handled in caller
 func (rf *Raft) startElection() {
-	args := RPC.RequestVoteArgs{
+
+    fmt.Println("startElection")
+
+    args := RPC.RequestVoteArgs{
         Term: rf.currentTerm,
         CandidateId: rf.me,
         LastLogIndex: rf.getLastLogIdx(),
