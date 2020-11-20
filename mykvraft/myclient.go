@@ -5,6 +5,8 @@ import (
 	"time"
 	"fmt"
 	"flag"
+	"sync/atomic"
+
 	//"strconv"
 	"strings"
 	"golang.org/x/net/context"
@@ -148,7 +150,7 @@ func (ck *Clerk) putAppendValue(address string , args  *KV.PutAppendArgs) (*KV.P
 
 
 
-var count int
+var count   int32  = 0
 
 func request(num int, servers []string)  {
 	ck := Clerk{}
@@ -156,18 +158,20 @@ func request(num int, servers []string)  {
 
 	for i:= 0; i <  len(servers); i++{
 		ck.servers[i] = servers[i] + "1"
-		fmt.Println(ck.servers[i])
+		//fmt.Println(ck.servers[i])
 	}
 
 
- 	for i := 0; i < 1 ; i++ {
+ 	for i := 0; i < 50 ; i++ {
 		rand.Seed(time.Now().UnixNano())
 		key := "key" + strconv.Itoa(rand.Intn(100000))
 		value := "value"+ strconv.Itoa(rand.Intn(100000))
-		ok := ck.Put(key,value)
-		fmt.Println(i ,"put   " ,value,ok )
-		fmt.Println(i, "get   " ,ck.Get(key) )
-		count++
+		//ok := 
+		ck.Put(key,value)
+	//	fmt.Println(i ,"put   " ,value,ok )
+	//	fmt.Println(i, "get   " ,ck.Get(key) )
+		atomic.AddInt32(&count,1)
+		//count++
 	}
 }
 
@@ -184,17 +188,17 @@ func main()  {
 	servers := strings.Split( *ser, ",")
 
 	fmt.Println( "count" )
-	serverNumm := 10
+	serverNumm := 100
 	//begin_time := time.Now().UnixNano()
 	for i := 0; i < serverNumm ; i++ {
-	//	go  request(i, servers)		
+		go  request(i, servers)		
 	} 
-	request(1 , servers)		
+	//request(1 , servers)		
 	//end_time := time.Now().UnixNano()
 
 	//t := end_time - begin_time
-	time.Sleep(time.Second)
-	fmt.Println( count )
+	time.Sleep(time.Second * 3)
+	fmt.Println( count  / 3 )
 
 	time.Sleep(time.Second*1200)
 

@@ -59,10 +59,12 @@ func (kv *KVServer) PutAppend(ctx context.Context,args *KV.PutAppendArgs) ( *KV.
 	}
 
 	apply := <- kv.applyCh
-	fmt.Println(apply)
+	//fmt.Println(apply)
 
 	fmt.Println(index)
-
+	if apply == 1{
+		
+	}
 	return reply, nil
 
 }
