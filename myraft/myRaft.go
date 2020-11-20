@@ -175,7 +175,7 @@ func (rf *Raft) updateLastApplied() {
                 rf.applyCh <- 1
             }
            
-            fmt.Println("APPLY " , m.Key, m.Value)
+           // fmt.Println("APPLY " , m.Key, m.Value)
             
           //  rf.mu.Unlock()
            // rf.persist.PrintStrVal("key1")
@@ -387,7 +387,7 @@ func (rf *Raft) AppendEntries(ctx context.Context, args *RPC.AppendEntriesArgs) 
         }
         rf.log = append(rf.log,log[i:]...) //4. Append any new entries not already in the log
        // rf.persist()
-       fmt.Println(args.Term,"Append RAft Log ",rf.log)
+       //fmt.Println(args.Term,"Append RAft Log ",rf.log)
         break;
     }
     //5. If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
