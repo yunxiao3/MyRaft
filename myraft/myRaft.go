@@ -175,7 +175,6 @@ func (rf *Raft) updateLastApplied() {
                 rf.applyCh <- 1
             }
            
-           // fmt.Println("APPLY " , m.Key, m.Value)
             
           //  rf.mu.Unlock()
            // rf.persist.PrintStrVal("key1")

@@ -1,5 +1,5 @@
 package georaft
-
+/* 
 
 
 type Log struct {
@@ -11,4 +11,4 @@ type ApplyMsg struct {
     CommandValid bool
     Command      interface{}
     CommandIndex int
-}
+} */

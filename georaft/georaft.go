@@ -1,6 +1,8 @@
 package georaft
 
 
+
+
 import (
 	"log"
 	"net"
@@ -9,13 +11,18 @@ import (
 	"sync"
 	"google.golang.org/grpc/reflection"
 	RPC "../grpc/georaft"
+	Per "../persister"
 	"fmt"
 	"sync/atomic"
 	"time"
-	"math/rand"
-	"../labgob"
-	"bytes"
-	"os"
+    "math/rand"
+    "encoding/json"
+	//"../labgob"
+    //"bytes"
+    "sort"
+    config "../config"
+
+	//"os"
 )
 
 type State int
@@ -24,41 +31,46 @@ const (
     Candidate             // value --> 1
     Leader                // value --> 2
 )
-/* 
+const NULL int32 = -1
+
+
 type Log struct {
-    Term    int32         "term when entry was received by leader"
-    Command interface{} "command for state machine,"
+    Term    int32       //  "term when entry was received by leader"
+    // Debug 原来是interface{}类型，但是因为json序列化和反序列化时Command类型转化有问题
+    Command  config.Op  //"command for state machine,"
 }
+
 
 type ApplyMsg struct {
     CommandValid bool
     Command      interface{}
-    CommandIndex int
-} */
+    CommandIndex int32
+}
 
-type Raft struct {
-    mu        sync.Mutex          // Lock to protect shared access to this peer's state
-  
+type GeoRaft struct {
+    mu        *sync.Mutex          // Lock to protect shared access to this peer's state
+   // peers     []*labrpc.ClientEnd // RPC end points of all peers
+   // persister *Persister          // Object to hold this peer's persisted state
     me        int32                 // this peer's index into peers[]
 
-    // state a Raft server must maintain.
+    // state a GeoRaft server must maintain.
     state     State
 
     //Persistent state on all servers:(Updated on stable storage before responding to RPCs)
-    currentTerm int32    "latest term server has seen (initialized to 0 increases monotonically)"
-    votedFor    int32    "candidateId that received vote in current term (or null if none)"
-    log         []Log  "log entries;(first index is 1)"
+    currentTerm int32   // "latest term server has seen (initialized to 0 increases monotonically)"
+    votedFor    int32   // "candidateId that received vote in current term (or null if none)"
+    log         []Log  // "log entries;(first index is 1)"
 
     //Volatile state on all servers:
-    commitIndex int32    "index of highest log entry known to be committed (initialized to 0, increases monotonically)"
-    lastApplied int32    "index of highest log entry applied to state machine (initialized to 0, increases monotonically)"
+    commitIndex int32   // "index of highest log entry known to be committed (initialized to 0, increases monotonically)"
+    lastApplied int32   // "index of highest log entry applied to state machine (initialized to 0, increases monotonically)"
 
     //Volatile state on leaders：(Reinitialized after election)
-    nextIndex   []int32  "for each server,index of the next log entry to send to that server"
-    matchIndex  []int32  "for each server,index of highest log entry known to be replicated on server(initialized to 0, im)"
+    nextIndex   []int32 // "for each server,index of the next log entry to send to that server"
+    matchIndex  []int32 // "for each server,index of highest log entry known to be replicated on server(initialized to 0, im)"
 
     //channel
-    applyCh     chan ApplyMsg // from Make()
+    applyCh     chan int // from Make()
     killCh      chan bool //for Kill()
     //handle rpc
     voteCh      chan bool
@@ -66,17 +78,15 @@ type Raft struct {
 	
 
 	// New 
-
-	client RPC.RAFTClient
+	persist  *Per.Persister
+	client RPC.GeoRAFTClient
 	address string
-
 	followers []string
-	observers []string
 	secretaries []string
+	observers []string
 
 }
 
-const NULL int32 = -1
 
 
 
@@ -89,11 +99,13 @@ func send(ch chan bool) {
     ch <- true
 }
 
-func (rf *Raft) getPrevLogIdx(i int) int32 {
+
+
+func (rf *GeoRaft) getPrevLogIdx(i int) int32 {
     return rf.nextIndex[i] - 1
 }
 
-func (rf *Raft) getPrevLogTerm(i int) int32 {
+func (rf *GeoRaft) getPrevLogTerm(i int) int32 {
     prevLogIdx := rf.getPrevLogIdx(i)
     if prevLogIdx < 0 {
         return -1
@@ -101,11 +113,11 @@ func (rf *Raft) getPrevLogTerm(i int) int32 {
     return rf.log[prevLogIdx].Term
 }
 
-func (rf *Raft) getLastLogIdx() int32 {
+func (rf *GeoRaft) getLastLogIdx() int32 {
     return int32(len(rf.log) - 1)
 }
 
-func (rf *Raft) getLastLogTerm() int32 {
+func (rf *GeoRaft) getLastLogTerm() int32 {
     idx := rf.getLastLogIdx()
     if idx < 0 {
         return -1
@@ -114,8 +126,74 @@ func (rf *Raft) getLastLogTerm() int32 {
 }
 
 
-func (rf *Raft) RequestVote(ctx context.Context, args *RPC.RequestVoteArgs) ( *RPC.RequestVoteReply, error ) {
-   
+
+// Add to sort int32 
+type IntSlice []int32
+func (s IntSlice) Len() int { return len(s) }
+func (s IntSlice) Swap(i, j int){ s[i], s[j] = s[j], s[i] }
+func (s IntSlice) Less(i, j int) bool { return s[i] < s[j] }
+
+
+//If there exists an N such that N > commitIndex,
+// a majority of matchIndex[i] ≥ N, and log[N].term == currentTerm: set commitIndex = N (§5.3, §5.4).
+func (rf *GeoRaft) updateCommitIndex() {
+   // rf.matchIndex[rf.me] =int32( len(rf.log) - 1)
+    copyMatchIndex := make([]int32,len(rf.matchIndex))
+    //fmt.Println(rf.matchIndex)
+    copy(copyMatchIndex,rf.matchIndex)
+    sort.Sort(sort.Reverse(IntSlice(copyMatchIndex)))
+    N := int32( copyMatchIndex[ (len(copyMatchIndex) - 1)/2] )
+    //fmt.Println("N: ", N)
+    if N > rf.commitIndex && rf.log[N].Term == rf.currentTerm {
+        rf.commitIndex = N
+        rf.updateLastApplied()
+    }
+}
+
+
+type Op struct {
+	// Your definitions here.
+	// Field names must start with capital letters,
+	// otherwise RPC will break.
+	Option string
+	Key string 
+	Value string
+	Id int64
+	Seq int64
+}
+
+func (rf *GeoRaft) updateLastApplied() {
+    for rf.lastApplied < rf.commitIndex {
+        rf.lastApplied++
+        curLog := rf.log[rf.lastApplied]
+       /*  applyMsg := ApplyMsg{
+            true,
+            curLog.Command,
+            rf.lastApplied,
+        } */
+        m := curLog.Command//.(config.Op)
+        if m.Option == "Put"{
+          //  fmt.Println("Put key value :", m.Key, m.Value)//, curLog.Command.(config.Op).Key,"value",curLog.Command.(config.Op).Value  )
+          //  rf.mu.Lock()
+            rf.persist.Put(m.Key, m.Value)
+            if rf.state == Leader{
+                rf.applyCh <- 1
+            }
+           
+            
+          //  rf.mu.Unlock()
+           // rf.persist.PrintStrVal("key1")
+        }
+      
+        // rf.applyCh <- applyMsg
+    }
+}
+
+
+ 
+func (rf *GeoRaft) RequestVote(ctx context.Context, args *RPC.RequestVoteArgs) ( *RPC.RequestVoteReply, error ) {
+   /*  rf.mu.Lock()
+	defer rf.mu.Unlock() */
     if (args.Term > rf.currentTerm) {//all server rule 1 If RPC request or response contains term T > currentTerm:
         rf.beFollower(args.Term) // set currentTerm = T, convert to follower (§5.1)
 	}
@@ -137,23 +215,210 @@ func (rf *Raft) RequestVote(ctx context.Context, args *RPC.RequestVoteArgs) ( *R
         send(rf.voteCh) //because If election timeout elapses without receiving granting vote to candidate, so wake up
 
 	}
-
+	// Debug TODO......
 	reply.VoteGranted = true
 	return reply,nil
 } 
 
 
- 
-func (rf *Raft)AppendEntries(ctx context.Context, args *RPC.AppendEntriesArgs) (*RPC.AppendEntriesReply, error) {
-	//raft.msg = raft.msg + in.Term
+
+
+func (rf *GeoRaft) startAppendLog() {
+	
+	//fmt.Println("startAppendLog ")
+	
+	go rf.startAppendLogToFollower() 
+	
+}
+
+
+
+//Leader Section:
+func (rf *GeoRaft) startAppendLogToFollower() {
+    for i := 0; i < len(rf.followers); i++ {
+        go func(idx int) {
+            for {
+                rf.mu.Lock();
+                if rf.state != Leader {
+                    rf.mu.Unlock()
+                    return
+                } //send initial empty AppendEntries RPCs (heartbeat) to each server
+                
+                appendLog := rf.log[rf.nextIndex[idx]:]
+                data, _ := json.Marshal(appendLog)
+
+                args := RPC.AppendEntriesArgs{
+                   Term: rf.currentTerm,
+                   LeaderId: rf.me,
+                   PrevLogIndex: rf.getPrevLogIdx(idx),
+                   PrevLogTerm: rf.getPrevLogTerm(idx),
+                    //If last log index ≥ nextIndex for a follower:send AppendEntries RPC with log entries starting at nextIndex
+                    //nextIndex > last log index, rf.log[rf.nextIndex[idx]:] will be empty then like a heartbeat
+                    Log: data,
+                    LeaderCommit: rf.commitIndex,
+                }
+                rf.mu.Unlock()
+                 //:= &RPC.AppendEntriesReply{}
+                reply, ret := rf.sendAppendEntries(rf.followers[idx], &args)
+                rf.mu.Lock();
+                if !ret || rf.state != Leader || rf.currentTerm != args.Term {
+                    rf.mu.Unlock()
+                    return
+                }
+                if reply.Term > rf.currentTerm {//all server rule 1 If RPC response contains term T > currentTerm:
+                    rf.beFollower(reply.Term) // set currentTerm = T, convert to follower (§5.1)
+                    rf.mu.Unlock()
+                    return
+                }
+                if reply.Success {//If successful：update nextIndex and matchIndex for follower
+                    rf.matchIndex[idx] = args.PrevLogIndex + int32(len(appendLog))
+                    rf.nextIndex[idx] = rf.matchIndex[idx] + 1
+                    rf.updateCommitIndex()
+                    rf.mu.Unlock()
+                    return
+                } else { //If AppendEntries fails because of log inconsistency: decrement nextIndex and retry
+                    tarIndex := reply.ConflictIndex //If it does not find an entry with that term
+                    if reply.ConflictTerm != NULL {
+                        logSize := len(rf.log) //first search its log for conflictTerm
+                        for i := 0; i < logSize; i++ {//if it finds an entry in its log with that term,
+                            if rf.log[i].Term != reply.ConflictTerm { continue }
+                            for i < logSize && rf.log[i].Term == reply.ConflictTerm { i++ }//set nextIndex to be the one
+                            tarIndex = int32(i) //beyond the index of the last entry in that term in its log
+                        }
+                    }
+                    rf.nextIndex[idx] = tarIndex;
+                    rf.mu.Unlock()
+				}
+			}	
+        }(i)
+    }
+}
+
+
+
+func (rf *GeoRaft) sendAppendEntries(address string , args  *RPC.AppendEntriesArgs)(*RPC.AppendEntriesReply,bool){
+	// Initialize Client
+   // fmt.Println("sendAppendEntries")
+    conn, err := grpc.Dial( address , grpc.WithInsecure(),grpc.WithBlock())
+	if err != nil {
+		log.Fatalf("did not connect: %v", err)
+	}
+	defer conn.Close()
+	rf.client = RPC.NewGeoRAFTClient(conn)
+
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	//args := &RPC.AppendEntriesArgs{}
+	reply, err := rf.client.AppendEntries(ctx,args)
+	if err != nil {
+        fmt.Println(" sendAppendEntries could not greet: ", err, address)
+        return reply ,false
+    }
+    return reply ,true
+}
+
+
+
+//AppendEntries RPC handler.
+func (rf *GeoRaft) AppendEntries(ctx context.Context, args *RPC.AppendEntriesArgs) (*RPC.AppendEntriesReply, error) {//now only for heartbeat
+    rf.mu.Lock()
+    defer rf.mu.Unlock()
+    defer send(rf.appendLogCh) //If election timeout elapses without receiving AppendEntries RPC from current leader
+    if args.Term > rf.currentTerm { //all server rule 1 If RPC request or response contains term T > currentTerm:
+        rf.beFollower(args.Term) // set currentTerm = T, convert to follower (§5.1)
+    }
+    reply := &RPC.AppendEntriesReply{}
+
+    reply.Term = rf.currentTerm
+    reply.Success = false
+    reply.ConflictTerm = NULL
+    reply.ConflictIndex = 0
+    //1. Reply false if log doesn’t contain an entry at prevLogIndex whose term matches prevLogTerm (§5.3)
+    var prevLogIndexTerm int32 = -1
+    var logSize int32 = int32(len(rf.log))
+    if args.PrevLogIndex >= 0 && args.PrevLogIndex < int32(len(rf.log)) {
+        prevLogIndexTerm = rf.log[args.PrevLogIndex].Term
+    }
+    if prevLogIndexTerm != args.PrevLogTerm {
+        reply.ConflictIndex = logSize
+        if prevLogIndexTerm == -1 {//If a follower does not have prevLogIndex in its log,
+            //it should return with conflictIndex = len(log) and conflictTerm = None.
+        } else { //If a follower does have prevLogIndex in its log, but the term does not match
+            reply.ConflictTerm = prevLogIndexTerm //it should return conflictTerm = log[prevLogIndex].Term,
+            i := int32(0)
+            for ; i < logSize; i++ {//and then search its log for
+                if rf.log[i].Term == reply.ConflictTerm {//the first index whose entry has term equal to conflictTerm
+                    reply.ConflictIndex = i
+                    break
+                }
+            }
+        }
+        return reply, nil
+    }
+    
+
+    var log []Log
+	json.Unmarshal(args.Log,&log)
+
+    /* r := bytes.NewBuffer(args.Log)
+    d := labgob.NewDecoder(r)
+	var loglen int
+    d.Decode(&loglen)
+    
+    log := make([]Log,loglen)
+ */
+   /*  if len(log) > 0{
+        fmt.Println(args.Term,"Append Log ",log)//.(config.Op))
+    } */
+
+
+    //2. Reply false if term < currentTerm (§5.1)
+    if args.Term < rf.currentTerm {
+        return reply, nil
+    }
+    
+    index := args.PrevLogIndex
+    for i := 0; i < len(log); i++ {
+        index++
+        if index < logSize {
+            if rf.log[index].Term == log[i].Term {
+                continue
+            } else {//3. If an existing entry conflicts with a new one (same index but different terms),
+                rf.log = rf.log[:index]//delete the existing entry and all that follow it (§5.3)
+            }
+        }
+        rf.log = append(rf.log,log[i:]...) //4. Append any new entries not already in the log
+       // rf.persist()
+       //fmt.Println(args.Term,"Append GeoRAft Log ",rf.log)
+        break;
+    }
+    //5. If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
+    if args.LeaderCommit > rf.commitIndex {
+        rf.commitIndex = Min(args.LeaderCommit ,rf.getLastLogIdx())
+        rf.updateLastApplied()
+    }
+    reply.Success = true
+    return reply, nil
+}
+
+
+func  Min(a int32, b int32) int32 {
+	if a > b{
+		return b
+	}
+	return a
+}
+
+// debug 
+/*
+func (rf *GeoRaft)AppendEntries(ctx context.Context, args *RPC.AppendEntriesArgs) (*RPC.AppendEntriesReply, error) {
 	
 	r := bytes.NewBuffer(args.Log)
     d := labgob.NewDecoder(r)
 	var log []Log 
 	d.Decode(&log) 	
     
-	fmt.Println("AppendEntries CALL",log )
-
 	reply := &RPC.AppendEntriesReply{}
 	//rf.currentTerm ++
 	reply.Term = rf.currentTerm 
@@ -177,27 +442,31 @@ func (rf *Raft)AppendEntries(ctx context.Context, args *RPC.AppendEntriesArgs) (
 	}
 }
 
+*/
 
-func (rf *Raft) RegisterServer(address string)  {
+
+
+func (rf *GeoRaft) RegisterServer(address string)  {
 	// Register Server 
-	lis, err := net.Listen("tcp", address)
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+	for{
+
+		lis, err := net.Listen("tcp", address)
+		if err != nil {
+			log.Fatalf("failed to listen: %v", err)
+		}
+		s := grpc.NewServer()
+		RPC.RegisterGeoRAFTServer(s, rf )
+		// Register reflection service on gRPC server.
+		reflection.Register(s)
+		if err := s.Serve(lis); err != nil {
+			fmt.Printf("failed to serve: %v \n", err)
+		}
+		
 	}
-	s := grpc.NewServer()
-	RPC.RegisterRAFTServer(s, rf /* &Raft{} */)
-	// Register reflection service on gRPC server.
-	reflection.Register(s)
-	if err := s.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
-	}
+	
 }
-
-
 //Follower Section:
-func (rf *Raft) beFollower(term int32) {
-
-	//fmt.Println(rf.address , "beFollower")
+func (rf *GeoRaft) beFollower(term int32) {
     rf.state = Follower
     rf.votedFor = NULL
     rf.currentTerm = term
@@ -205,47 +474,41 @@ func (rf *Raft) beFollower(term int32) {
 }
 
 
-func (rf *Raft) beLeader() {
+func (rf *GeoRaft) beLeader() {
 
 	if rf.state != Candidate {
         return
-	}else{
-		fmt.Println("rf.state == Candidate")
-	} 
-	
-
-	//fmt.Println(rf.me, " Become Leader !", rf.currentTerm)
+	}
     rf.state = Leader
     //initialize leader data
-    rf.nextIndex = make([]int32,/* len(rf.peers) */10)
-    rf.matchIndex = make([]int32,/* len(rf.peers) */10)//initialized to 0
+    rf.nextIndex = make([]int32,len(rf.followers))
+    rf.matchIndex = make([]int32,len(rf.followers))
     for i := 0; i < len(rf.nextIndex); i++ {//(initialized to leader last log index + 1)
         rf.nextIndex[i] = rf.getLastLogIdx() + 1
 	}
-	fmt.Println(rf.me,"#####become LEADER####",  rf.state == Leader)
+	fmt.Println(rf.address,"#####become LEADER####",  rf.currentTerm)
 }
 
 
 //Candidate Section:
 // If AppendEntries RPC received from new leader: convert to follower implemented in AppendEntries RPC Handler
-func (rf *Raft) beCandidate() { //Reset election timer are finished in caller
+func (rf *GeoRaft) beCandidate() { //Reset election timer are finished in caller
 	fmt.Println(rf.address ," become Candidate ", rf.currentTerm)
 	rf.state = Candidate
     rf.currentTerm++ //Increment currentTerm
     rf.votedFor = rf.me //vote myself first
-    //rf.persist()
     //ask for other's vote
     go rf.startElection() //Send RequestVote RPCs to all other servers
 }
 
-/* func Log2Bytes( []Log ) bytes {
-	
-}
- */
 
-func (rf *Raft) startAppendLog() {
+
+// Debug 
+/*
+
+func (rf *GeoRaft) startAppendLog() {
 	
-	fmt.Println("startAppendLog ")
+	//fmt.Println("startAppendLog ")
 	
 	idx := 0
 	//appendLog := append(make([]Log,0),rf.log[rf.nextIndex[idx]:]...)
@@ -273,45 +536,54 @@ func (rf *Raft) startAppendLog() {
 		Log: data,
 		LeaderCommit: rf.commitIndex,
 	}
-	for i := 0; i < len(rf.followers); i++{
-		go rf.L2FsendAppendEntries(rf.followers[i], &args)
-	}
+	for i := 0; i < len(rf.members); i++{
+		if (rf.address == rf.members[i]) {
+			continue	
 
-	for i := 0; i < len(rf.secretaries); i++{
-		go rf.L2SsendAppendEntries(rf.secretaries[i], &args)
+		}
+		go rf.sendAppendEntries(rf.members[i], &args)
 	}
-
-	for i := 0; i < len(rf.observers); i++{
-		go rf.L2OsendAppendEntries(rf.observers[i], &args)
-	}
-
 
 	
+}
+*/
+
+
+func (rf *GeoRaft) GetState() (int32, bool) {
+    var term int32
+    var isleader bool
+    rf.mu.Lock()
+    defer rf.mu.Unlock()
+    term = rf.currentTerm
+    isleader = (rf.state == Leader)
+    return term, isleader
 }
 
 
 //If election timeout elapses: start new election handled in caller
-func (rf *Raft) startElection() {
+func (rf *GeoRaft) startElection() {
 
-	args := RPC.RequestVoteArgs{
+    fmt.Println("startElection")
+
+    args := RPC.RequestVoteArgs{
         Term: rf.currentTerm,
         CandidateId: rf.me,
         LastLogIndex: rf.getLastLogIdx(),
         LastLogTerm: rf.getLastLogTerm(),
 
 	};
-
 	// TODO.....
-	 var votes int32 = 1;
+	var votes int32 = 1;
     for i := 0; i < len(rf.followers); i++ {
-    
+        if rf.address == rf.followers[i] {
+            continue
+        }
 		go func(idx int) { 
 			//fmt.Println("sendRequestVote to :", rf.members[idx])
         	//reply := RPC.RequestVoteReply{Term:9999, VoteGranted: false}
             ret,reply :=  rf.sendRequestVote(rf.followers[idx],&args/* ,&reply */)
  
             if ret {
-				//fmt.Println( "reply.ret #### ")
                 /* rf.mu.Lock()
                 defer rf.mu.Unlock() */
                 if reply.Term > rf.currentTerm {
@@ -329,14 +601,11 @@ func (rf *Raft) startElection() {
 				}else{
 				//	fmt.Println( "#########reply.VoteGranted false ", reply.Term)
 				}
-				
-                if atomic.LoadInt32(&votes) > int32( (len(rf.followers) + 1) / 2) {
+                if atomic.LoadInt32(&votes) > int32(len(rf.followers) / 2) {
 					rf.beLeader()
 					//fmt.Println("rf.beLeader()")
                     send(rf.voteCh) //after be leader, then notify 'select' goroutine will sending out heartbeats immediately
-                }else{
-					fmt.Println("rf.beLeader()", (len(rf.followers) + 1) / 2)
-				}
+                }
             }
         }(i)
 	
@@ -344,9 +613,7 @@ func (rf *Raft) startElection() {
 }
 
 
-
-func (rf *Raft) init (add string) {
-
+func (rf *GeoRaft) init () {
 
     rf.state = Follower
     rf.currentTerm = 0
@@ -356,15 +623,14 @@ func (rf *Raft) init (add string) {
     rf.commitIndex = 0
     rf.lastApplied = 0
 
-    //rf.applyCh = applyCh
     //because gorountne only send the chan to below goroutine,to avoid block, need 1 buffer
     rf.voteCh = make(chan bool,1)
     rf.appendLogCh = make(chan bool,1)
     rf.killCh = make(chan bool,1)
 
+	
 
-
-	heartbeatTime := time.Duration(200) * time.Millisecond
+	heartbeatTime := time.Duration(150) * time.Millisecond
 	go func() {
         for {
             select {
@@ -372,7 +638,7 @@ func (rf *Raft) init (add string) {
                 return
             default:
             }
-            electionTime := time.Duration(rand.Intn(200) + 300) * time.Millisecond
+            electionTime := time.Duration(rand.Intn(350) + 300) * time.Millisecond
 
            // rf.mu.Lock()
             state := rf.state
@@ -384,36 +650,25 @@ func (rf *Raft) init (add string) {
                 case <-rf.appendLogCh:
                 case <-time.After(electionTime):
                 //    rf.mu.Lock()
+                    fmt.Println("######## time.After(electionTime) #######")
                     rf.beCandidate() //becandidate, Reset election timer, then start election
                 //    rf.mu.Unlock()
                 }
 			case Leader:
-				rf.Start(nil)
                 rf.startAppendLog()
                 time.Sleep(heartbeatTime )
             }
         }
     }()
 
-
-
-
-
-
-
-
 	// Add New 
-	rf.address = add;	
 
 	go  rf.RegisterServer(rf.address)
-
-	
-
 	
 }
 
 
-func (rf *Raft) Start(command interface{}) (int32, int32, bool) {
+func (rf *GeoRaft) Start(command interface{}) (int32, int32, bool) {
     rf.mu.Lock()
     defer rf.mu.Unlock()
     var index int32 = -1
@@ -424,98 +679,20 @@ func (rf *Raft) Start(command interface{}) (int32, int32, bool) {
         index = rf.getLastLogIdx() + 1
         newLog := Log{
             rf.currentTerm,
-            command,
+            command.(config.Op),
         }
         rf.log = append(rf.log,newLog)
        // rf.persist()
-    }
+       rf.startAppendLog()
+
+	}
+	//fmt.Println("new Log",  rf.log)
     return index, term, isLeader
 }
 
 
 
-func (rf *Raft) L2FsendAppendEntries(address string , args  *RPC.AppendEntriesArgs){
-
-	fmt.Println("StartAppendEntries")
-
-	// Initialize Client
-	conn, err := grpc.Dial( address , grpc.WithInsecure(),grpc.WithBlock())
-	if err != nil {
-		log.Fatalf("did not connect: %v", err)
-	}
-	defer conn.Close()
-	rf.client = RPC.NewRAFTClient(conn)
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	r, err := rf.client.AppendEntries(ctx,args)
-	if err != nil {
-		log.Printf("could not greet: %v", err)
-	}
-	log.Printf("Append reply: %s", r)
-}
-
-
-
-
-func (rf *Raft) L2SsendAppendEntries(address string , args  *RPC.AppendEntriesArgs){
-
-	fmt.Println("StartAppendEntries")
-
-	// Initialize Client
-	conn, err := grpc.Dial( address , grpc.WithInsecure(),grpc.WithBlock())
-	if err != nil {
-		log.Fatalf("did not connect: %v", err)
-	}
-	defer conn.Close()
-	client := RPC.NewSecretaryClient(conn)
-
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	//args := &RPC.AppendEntriesArgs{}
-	r, err := client.L2SAppendEntries(ctx,args)
-	if err != nil {
-		log.Printf("could not greet: %v", err)
-	}
-	log.Printf("Append reply: %s", r)
-	//fmt.Println("Append name is ABC")
-}
-
-
-
-func (rf *Raft) L2OsendAppendEntries(address string , args  *RPC.AppendEntriesArgs){
-
-	fmt.Println("StartAppendEntries")
-
-	// Initialize Client
-	conn, err := grpc.Dial( address , grpc.WithInsecure(),grpc.WithBlock())
-	if err != nil {
-		log.Fatalf("did not connect: %v", err)
-	}
-	defer conn.Close()
-	client := RPC.NewObserverClient(conn)
-
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	//args := &RPC.AppendEntriesArgs{}
-	r, err := client.AppendEntries(ctx,args)
-	if err != nil {
-		log.Printf("could not greet: %v", err)
-	}
-	log.Printf("Append reply: %s", r)
-	//fmt.Println("Append name is ABC")
-}
-
-
-
-
-
-
-
-func (rf *Raft) sendRequestVote(address string ,args *RPC.RequestVoteArgs) (bool ,  *RPC.RequestVoteReply){
-
+func (rf *GeoRaft) sendRequestVote(address string ,args *RPC.RequestVoteArgs) (bool ,  *RPC.RequestVoteReply){
 	//fmt.
 	// Initialize Client
 	conn, err := grpc.Dial( address , grpc.WithInsecure(), grpc.WithBlock())
@@ -523,7 +700,7 @@ func (rf *Raft) sendRequestVote(address string ,args *RPC.RequestVoteArgs) (bool
 		log.Fatalf("did not connect: %v", err)
 	}
 	defer conn.Close()
-	rf.client = RPC.NewRAFTClient(conn)
+	rf.client = RPC.NewGeoRAFTClient(conn)
 
 	//fmt.Println("StartRequestVote")
 
@@ -535,80 +712,32 @@ func (rf *Raft) sendRequestVote(address string ,args *RPC.RequestVoteArgs) (bool
 	*reply.VoteGranted = *r.VoteGranted */
 	if err != nil {
 		return false, reply
-		//log.Printf("could not greet: %v", err)
 	}else{
-		//fmt.Println("reply ", reply.VoteGranted)
 		return true, reply
-	//	fmt.Println("send address ", address, " raft address:  ", rf.address )
 
 	}
-	//return false
 }
 
 
-
-func MakeGeoRaft(address string, followers []string, secretaries []string, observers []string) *Raft {
-	rf := &Raft{}
-
-
-  	if (len(followers) > 0){
-		rf.followers = make([]string, len(followers) )
-		for i:= 0; i < len(followers) ; i++{
-			rf.followers[i] = followers[i]
-			fmt.Printf(rf.followers[i])
-		}
-	}  
-
-	if (len(observers) > 0){
-		rf.observers = make([]string, len(observers) )
-		for i:= 0; i < len(observers) ; i++{
-			rf.observers[i] = observers[i]
-			fmt.Printf(rf.observers[i])
-		}
-	} 
-
-	if (len(secretaries) > 0){
-		rf.secretaries = make([]string, len(secretaries) )
-		for i:= 0; i < len(secretaries) ; i++{
-			rf.secretaries[i] = secretaries[i]
-			fmt.Printf(rf.secretaries[i])
-		}
+func MakeGeoRaft(add string ,mem []string, persist *Per.Persister, 
+    mu *sync.Mutex, applyCh chan int) *GeoRaft {
+	Georaft := &GeoRaft{}
+	if (len(mem) <= 1 ){
+		panic("#######Address is less 1, you should set follower's address!######")
 	}
 
-	//fmt.Println()
-	rf.init(address)
-	return rf
 
+    Georaft.address = add
+    Georaft.persist = persist
+    Georaft.applyCh = applyCh
+    Georaft.mu = mu
+
+	Georaft.followers = make([]string, len(mem))
+	for i:= 0; i < len(mem)  ; i++{
+		Georaft.followers[i] = mem[i]
+		fmt.Println(Georaft.followers[i])
+	}
+
+	Georaft.init()
+	return Georaft
 } 
-
-
-
-func main() {
-	raft := Raft{}
-
-
-
-
-	if (len(os.Args) > 1){
-		raft.address = os.Args[1]
-		raft.followers = make([]string, len(os.Args) - 2)
-		for i:= 0; i < len(os.Args) - 2; i++{
-			//fmt.Printf("args[%v]=[%v]\n",k,v)
-			raft.followers[i] = os.Args[i+2]
-			fmt.Printf(raft.followers[i])
-		}
-	}
-
-	
-	raft.init(raft.address)
-	fmt.Println("\ninit raft address " , raft.address)
-	fmt.Println(raft.followers)	
-
-	time.Sleep(time.Second*12)
-
-
-	time.Sleep(time.Second*200)
-
-
-}
-

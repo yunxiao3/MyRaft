@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"time"
 	"../labgob"
+	config "../config"
+
 	"bytes"
 )
 
@@ -107,11 +109,11 @@ func (se *Secretary) startAppendLog() {
 	//appendLog := append(make([]Log,0),rf.log[rf.nextIndex[idx]:]...)
 	appendLog := make([]Log,3)
 	appendLog[0].Term = 0
-	appendLog[0].Command =  "sdfdsfsdfdsfdsfdsfdsfsfsfsfsdfdsfdsfdsfdsfsfdsfdsfs"
+	appendLog[0].Command =  config.Op{}
 	appendLog[1].Term = 1
-	appendLog[1].Command =  "sdfdsfsdfdsfdsfdsfdsfsfsfsfsdfdsfdsfdsfdsfsfdsfdsfs" 
+	appendLog[1].Command = config.Op{}
 	appendLog[2].Term = 2
-	appendLog[2].Command =  "sdfdsfsdfdsfdsfdsfdsfsfsfsfsdfdsfdsfdsfdsfsfdsfdsfs"
+	appendLog[2].Command =  config.Op{}
 	
 	w := new(bytes.Buffer)
     e := labgob.NewEncoder(w)
