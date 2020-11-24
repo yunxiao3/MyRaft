@@ -227,6 +227,7 @@ func (rf *GeoRaft) startAppendLog() {
 	
 	//fmt.Println("startAppendLog ")
 	
+	
 	go rf.startAppendLogToFollower() 
 	
 }
