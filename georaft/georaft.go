@@ -65,9 +65,10 @@ type GeoRaft struct {
 	persist  *Per.Persister
 	client RPC.GeoRAFTClient
 	address string
-	followers []string
+	members []string
 	secretaries []string
-	observers []string
+    observers []string
+    secmembers []string
 
 }
 
@@ -97,6 +98,34 @@ func (rf *GeoRaft) getLastLogTerm() int32 {
 }
 
 
+
+
+func (rf *GeoRaft) getPrevLogIdxSec(i int) int32 {
+    return rf.secnextIndex[i] - 1
+}
+
+func (rf *GeoRaft) getPrevLogTermSec(i int) int32 {
+    prevLogIdx := rf.getPrevLogIdxSec(i)
+    if prevLogIdx < 0 {
+        return -1
+    }
+    return rf.log[prevLogIdx].Term
+}
+
+func (rf *GeoRaft) getLastLogIdxSec() int32 {
+    return int32(len(rf.log) - 1)
+}
+
+func (rf *GeoRaft) getLastLogTermSec() int32 {
+    idx := rf.getLastLogIdx()
+    if idx < 0 {
+        return -1
+    }
+    return rf.log[idx].Term
+}
+
+
+
 //If there exists an N such that N > commitIndex,
 // a majority of matchIndex[i] ≥ N, and log[N].term == currentTerm: set commitIndex = N (§5.3, §5.4).
 func (rf *GeoRaft) updateCommitIndex() {
@@ -123,6 +152,8 @@ func (rf *GeoRaft) updateLastApplied() {
           //  fmt.Println("Put key value :", m.Key, m.Value)//, curLog.Command.(config.Op).Key,"value",curLog.Command.(config.Op).Value  )
           //  rf.mu.Lock()
             rf.persist.Put(m.Key, m.Value)
+            fmt.Println("\n\n####apply :", curLog.Command)
+
             if rf.state == Leader{
                 rf.applyCh <- 1
             }
@@ -167,15 +198,27 @@ func (rf *GeoRaft) startAppendLog() {
 	//fmt.Println("startAppendLog ")
 	
 
-	go rf.startAppendLogToFollower() 
+    go rf.startAppendLogToFollower() 
+    go rf.startAppendLogToSecretary() 
+
 	
 }
 
 
 //Leader Section:
 func (rf *GeoRaft) startAppendLogToFollower() {
-    for i := 0; i < len(rf.followers); i++ {
+    for i := 0; i < len(rf.members); i++ {
+        flag := false
+        for j:=0; j < len(rf.secmembers); j++ {
+            if rf.members[i] == rf.secmembers[j] {
+                flag = true
+            }
+        }
+        if flag{
+            continue
+        }
         go func(idx int) {
+            //fmt.Println("StartAppendEntries",rf.members[idx])
             for {
                 rf.mu.Lock();
                 if rf.state != Leader {
@@ -197,7 +240,7 @@ func (rf *GeoRaft) startAppendLogToFollower() {
                 }
                 rf.mu.Unlock()
                  //:= &RPC.AppendEntriesReply{}
-                reply, ret := rf.L2FsendAppendEntries(rf.followers[idx], &args)
+                reply, ret := rf.L2FsendAppendEntries(rf.members[idx], &args)
                 rf.mu.Lock();
                 if !ret || rf.state != Leader || rf.currentTerm != args.Term {
                     rf.mu.Unlock()
@@ -280,6 +323,7 @@ func (rf *GeoRaft) L2FsendAppendEntries(address string , args  *RPC.AppendEntrie
 
 //Leader Section:
 func (rf *GeoRaft) startAppendLogToSecretary() {
+   // fmt.Println(rf.secretaries)
     for i := 0; i < len(rf.secretaries); i++ {
         go func(idx int) {
             for {
@@ -294,8 +338,8 @@ func (rf *GeoRaft) startAppendLogToSecretary() {
                 args := RPC.AppendEntriesArgs{
                    Term: rf.currentTerm,
                    LeaderId: rf.me,
-                   PrevLogIndex: rf.getPrevLogIdx(idx),
-                   PrevLogTerm: rf.getPrevLogTerm(idx),
+                   PrevLogIndex: rf.getPrevLogIdxSec(idx),
+                   PrevLogTerm: rf.getPrevLogTermSec(idx),
                     //If last log index ≥ nextIndex for a follower:send AppendEntries RPC with log entries starting at nextIndex
                     //nextIndex > last log index, rf.log[rf.nextIndex[idx]:] will be empty then like a heartbeat
                     Log: data,
@@ -315,14 +359,14 @@ func (rf *GeoRaft) startAppendLogToSecretary() {
                     return
                 }
                 if reply.Success {//If successful：update nextIndex and matchIndex for follower
-                    rf.matchIndex[idx] = args.PrevLogIndex + int32(len(appendLog))
-					rf.nextIndex[idx] = rf.matchIndex[idx] + 1
+                    rf.secmatchIndex[idx] = args.PrevLogIndex + int32(len(appendLog))
+					rf.secnextIndex[idx] = rf.secmatchIndex[idx] + 1
 					/* 
 						Todo:
 						##### update follower's mactchIndex #####
 					*/
 
-                    rf.updateCommitIndex()
+                   // rf.updateCommitIndex()
                     rf.mu.Unlock()
                     return
                 } else { //If AppendEntries fails because of log inconsistency: decrement nextIndex and retry
@@ -335,7 +379,7 @@ func (rf *GeoRaft) startAppendLogToSecretary() {
                             tarIndex = int32(i) //beyond the index of the last entry in that term in its log
                         }
                     }
-                    rf.nextIndex[idx] = tarIndex;
+                    rf.secnextIndex[idx] = tarIndex;
                     rf.mu.Unlock()
 				}
 			}	
@@ -347,7 +391,6 @@ func (rf *GeoRaft) startAppendLogToSecretary() {
 func (rf *GeoRaft) L2SsendAppendEntries(address string , 
 		args  *RPC.AppendEntriesArgs)(*RPC.L2SAppendEntriesReply, bool){
 
-	fmt.Println("StartAppendEntries")
 
 	// Initialize Client
 	conn, err := grpc.Dial( address , grpc.WithInsecure(),grpc.WithBlock())
@@ -499,11 +542,25 @@ func (rf *GeoRaft) beLeader() {
 	}
     rf.state = Leader
     //initialize leader data
-    rf.nextIndex = make([]int32,len(rf.followers))
-    rf.matchIndex = make([]int32,len(rf.followers))
+    rf.nextIndex = make([]int32,len(rf.members))
+    rf.matchIndex = make([]int32,len(rf.members))
     for i := 0; i < len(rf.nextIndex); i++ {//(initialized to leader last log index + 1)
         rf.nextIndex[i] = rf.getLastLogIdx() + 1
+    }
+    
+    rf.secnextIndex = make([]int32,len(rf.secretaries))
+    rf.secmatchIndex = make([]int32,len(rf.secretaries))
+    for i := 0; i < len(rf.secnextIndex); i++ {//(initialized to leader last log index + 1)
+        rf.secnextIndex[i] = rf.getLastLogIdx() + 1
+    }
+    
+    rf.obnextIndex = make([]int32,len(rf.observers))
+    rf.obmatchIndex = make([]int32,len(rf.observers))
+    for i := 0; i < len(rf.obnextIndex); i++ {//(initialized to leader last log index + 1)
+        rf.obnextIndex[i] = rf.getLastLogIdx() + 1
 	}
+
+
 	fmt.Println(rf.address,"#####become LEADER####",  rf.currentTerm)
 }
 
@@ -545,14 +602,14 @@ func (rf *GeoRaft) startElection() {
 
 	};
 	var votes int32 = 1;
-    for i := 0; i < len(rf.followers); i++ {
-        if rf.address == rf.followers[i] {
+    for i := 0; i < len(rf.members); i++ {
+        if rf.address == rf.members[i] {
             continue
         }
 		go func(idx int) { 
 			//fmt.Println("sendRequestVote to :", rf.members[idx])
         	//reply := RPC.RequestVoteReply{Term:9999, VoteGranted: false}
-            ret,reply :=  rf.sendRequestVote(rf.followers[idx],&args/* ,&reply */)
+            ret,reply :=  rf.sendRequestVote(rf.members[idx],&args/* ,&reply */)
  
             if ret {
                 /* rf.mu.Lock()
@@ -568,7 +625,7 @@ func (rf *GeoRaft) startElection() {
                     atomic.AddInt32(&votes,1)
 				}else{
 				}
-                if atomic.LoadInt32(&votes) > int32(len(rf.followers) / 2) {
+                if atomic.LoadInt32(&votes) > int32(len(rf.members) / 2) {
 					rf.beLeader()
                     send(rf.voteCh) //after be leader, then notify 'select' goroutine will sending out heartbeats immediately
                 }
@@ -616,7 +673,7 @@ func (rf *GeoRaft) init () {
                     rf.beCandidate() //becandidate, Reset election timer, then start election
                 //    rf.mu.Unlock()
 				}
-				//fmt.Println(rf.log)
+				fmt.Println(rf.log)
 			case Leader:
                 rf.startAppendLog()
                 time.Sleep(heartbeatTime )
@@ -680,7 +737,7 @@ func (rf *GeoRaft) sendRequestVote(address string ,args *RPC.RequestVoteArgs) (b
 }
 
 
-func MakeGeoRaft(add string ,follower []string,secretary []string,observer []string, 
+func MakeGeoRaft(add string ,follower []string,secretary []string,secmember []string,observer []string, 
 	persist *Per.Persister,  mu *sync.Mutex, applyCh chan int) *GeoRaft {
 	Georaft := &GeoRaft{}
 	if (len(follower) <= 1 ){
@@ -693,10 +750,10 @@ func MakeGeoRaft(add string ,follower []string,secretary []string,observer []str
     Georaft.applyCh = applyCh
     Georaft.mu = mu
 
-	Georaft.followers = make([]string, len(follower))
+    Georaft.members = make([]string, len(follower))
 	for i:= 0; i < len(follower)  ; i++{
-		Georaft.followers[i] = follower[i]
-		fmt.Println(Georaft.followers[i])
+		Georaft.members[i] = follower[i]
+		fmt.Println(Georaft.members[i])
 	}
  
 	Georaft.observers = make([]string, len(observer))
@@ -709,6 +766,12 @@ func MakeGeoRaft(add string ,follower []string,secretary []string,observer []str
 	for i:= 0; i < len(secretary)  ; i++{
 		Georaft.secretaries[i] = secretary[i]
 		fmt.Println(Georaft.secretaries[i])
+    } 
+    
+    Georaft.secmembers = make([]string, len(secmember))
+	for i:= 0; i < len(secmember)  ; i++{
+		Georaft.secmembers[i] = secmember[i]
+		fmt.Println(Georaft.secmembers[i])
 	} 
 
 	Georaft.init()

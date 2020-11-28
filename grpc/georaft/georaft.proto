@@ -41,9 +41,11 @@ service Secretary {
 
 
 message L2SAppendEntriesReply {
-
-    bytes MatchIndex = 1;
-
+    int32 Term = 1;             
+    bool Success = 2;       
+    int32 ConflictIndex  = 3;
+    int32 ConflictTerm  = 4;
+    bytes MatchIndex = 7;
 }
 
 service Observer{

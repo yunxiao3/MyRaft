@@ -396,19 +396,10 @@ func (rf *Raft) init (add string) {
     }()
 
 
-
-
-
-
-
-
 	// Add New 
 	rf.address = add;	
 
 	go  rf.RegisterServer(rf.address)
-
-	
-
 	
 }
 

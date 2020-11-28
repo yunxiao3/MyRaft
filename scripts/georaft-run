@@ -1,0 +1,20 @@
+go run myserver.go \
+-address localhost:5000 \
+-members  localhost:5001,localhost:5002,localhost:5004,localhost:5005 \
+-secretaries localhost:5003 \
+-secmembers localhost:5004,localhost:5005
+
+
+
+go run myserver.go \
+-address localhost:5001 \
+-members  localhost:5000,localhost:5002,localhost:5004,localhost:5005 \
+-secretaries localhost:5003 \
+-secmembers localhost:5004,localhost:5005
+
+
+go run myserver.go \
+-address localhost:5002 \
+-members  localhost:5001,localhost:5000,localhost:5004,localhost:5005 \
+-secretaries localhost:5003 \
+-secmembers localhost:5004,localhost:5005

@@ -134,13 +134,10 @@ func main()  {
 
 	var add = flag.String("address", "", "Input Your address")
 	var mems = flag.String("members", "", "Input Your follower")
-	var sec = flag.String("secretaries", "", "Input Your secretary")
 	var ob = flag.String("observers", "", "Input Your secretary")
-	var secm = flag.String("secmembers", "", "Input Your secretary")
 
 	flag.Parse()
 
-	server := KVServer{}
 
 	// Local address	
 	address := *add
@@ -149,26 +146,33 @@ func main()  {
 	persist.Init("../db/"+address)
 	
 	//for i := 0; i <= int (address[ len(address) - 1] - '0'); i++{
-	server.applyCh = make(chan int, 1)
+	applyCh := make(chan int, 1)
 	//}
 	
-	//server.applyCh = make(chan int, 1)
-	fmt.Println(server.applyCh)
-
-	server.persist  = persist
+	var mu  sync.Mutex
 
 	// Members's address
 	members := strings.Split( *mems, ",")
-	secretaries := strings.Split( *sec, ",")
 	observers := strings.Split( *ob, ",")
-	secmembers := strings.Split( *secm, ",")
 
-	fmt.Println(address, members, secretaries, secretaries == nil)
+	fmt.Println(address, members)
 
 
-	go server.RegisterServer(address+"1")
-	server.rf = georaft.MakeGeoRaft(address , members ,secretaries, secmembers,observers  ,persist, &server.mu,server.applyCh)
+	//go server.RegisterServer(address+"1")
+	secretary := georaft.MakeSecretary(address , members ,observers  ,persist, &mu,applyCh)
 	
+	
+	//oringalOp := config.Op{"sec", "key","Value", 100, 100}
+	//secretary.Start(oringalOp)
+	if secretary != nil{
+		fmt.Println("secretary.Start")
+	}
+
+	for {
+		//secretary.Start(oringalOp)
+		time.Sleep(time.Second*10)
+	}
+
 	time.Sleep(time.Second*1200)
 
 }

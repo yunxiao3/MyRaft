@@ -150,35 +150,40 @@ func (ck *Clerk) putAppendValue(address string , args  *KV.PutAppendArgs) (*KV.P
 
 
 
-var count   int32  = 0
+var count  int32  = 0
 
-func request(num int, servers []string)  {
+func Wirterequest(num int, servers []string)  {
 	ck := Clerk{}
 	ck.servers = make([]string, len(servers)) 
 
 	for i:= 0; i <  len(servers); i++{
 		ck.servers[i] = servers[i] + "1"
-		//fmt.Println(ck.servers[i])
 	}
 
-
- 	for i := 0; i < 50 ; i++ {
-		rand.Seed(time.Now().UnixNano())
+ 	for i := 0; i < num ; i++ {
 		key := "key" + strconv.Itoa(rand.Intn(100000))
 		value := "value"+ strconv.Itoa(rand.Intn(100000))
-		//ok := 
 		ck.Put(key,value)
-	//	fmt.Println(i ,"put   " ,value,ok )
-	//	fmt.Println(i, "get   " ,ck.Get(key) )
 		atomic.AddInt32(&count,1)
-		//count++
 	}
 }
 
 
-func requesttest()  {
-	
+func Readequest(num int, servers []string)  {
+	ck := Clerk{}
+	ck.servers = make([]string, len(servers)) 
+
+	for i:= 0; i <  len(servers); i++{
+		ck.servers[i] = servers[i] + "1"
+	}
+
+ 	for i := 0; i < num ; i++ {
+		ck.Get("key") 
+		atomic.AddInt32(&count,1)
+	}
 }
+
+
 
 
 func main()  {
@@ -188,15 +193,10 @@ func main()  {
 	servers := strings.Split( *ser, ",")
 
 	fmt.Println( "count" )
-	serverNumm := 100
-	//begin_time := time.Now().UnixNano()
+	serverNumm := 1
 	for i := 0; i < serverNumm ; i++ {
-		go  request(i, servers)		
+		go  Wirterequest(10, servers)		
 	} 
-	//request(1 , servers)		
-	//end_time := time.Now().UnixNano()
-
-	//t := end_time - begin_time
 	time.Sleep(time.Second * 3)
 	fmt.Println( count  / 3 )
 

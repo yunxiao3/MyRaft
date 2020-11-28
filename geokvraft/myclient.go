@@ -169,7 +169,7 @@ func Wirterequest(num int, servers []string)  {
 }
 
 
-func Readequest(num int, servers []string)  {
+func Readrequest(num int, servers []string)  {
 	ck := Clerk{}
 	ck.servers = make([]string, len(servers)) 
 
@@ -178,7 +178,7 @@ func Readequest(num int, servers []string)  {
 	}
 
  	for i := 0; i < num ; i++ {
-		ck.Get("key") 
+		ck.Get("key1") 
 		atomic.AddInt32(&count,1)
 	}
 }
@@ -195,7 +195,7 @@ func main()  {
 	fmt.Println( "count" )
 	serverNumm := 1
 	for i := 0; i < serverNumm ; i++ {
-		go  Wirterequest(10, servers)		
+		go  Wirterequest(1, servers)		
 	} 
 	time.Sleep(time.Second * 3)
 	fmt.Println( count  / 3 )
