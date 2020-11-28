@@ -339,6 +339,9 @@ func (rf *Secretary)L2SAppendEntries(ctx context.Context, args *RPC.AppendEntrie
         rf.updateLastApplied()
     }
     reply.Success = true
+    data, _ := json.Marshal(rf.matchIndex)
+    reply.MatchIndex = data
+
     return reply, nil
 }
 

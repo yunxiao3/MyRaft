@@ -365,7 +365,19 @@ func (rf *GeoRaft) startAppendLogToSecretary() {
 						Todo:
 						##### update follower's mactchIndex #####
 					*/
-
+                    var match []int32 
+                    json.Unmarshal(reply.MatchIndex,&match)
+                    
+                       // flag := false
+                    for j:=0; j < len(rf.secmembers); j++ {
+                        for k := 0; k < len(rf.members); k++ {
+                            if rf.members[k] == rf.secmembers[j] {
+                               rf.matchIndex[k] = match[j]
+                            }
+                        }
+                    }
+                    
+                
                    // rf.updateCommitIndex()
                     rf.mu.Unlock()
                     return

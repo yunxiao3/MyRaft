@@ -193,9 +193,9 @@ func main()  {
 	servers := strings.Split( *ser, ",")
 
 	fmt.Println( "count" )
-	serverNumm := 1
+	serverNumm := 10
 	for i := 0; i < serverNumm ; i++ {
-		go  Wirterequest(1, servers)		
+		go  Wirterequest(100, servers)		
 	} 
 	time.Sleep(time.Second * 3)
 	fmt.Println( count  / 3 )
