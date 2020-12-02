@@ -27,7 +27,7 @@ type KVServer struct {
 	//applyCh chan raft.ApplyMsg
 	dead         int32 // set by Kill()
 	maxraftstate int   // snapshot if log grows this big
-
+	delay        int
 	// Your definitions here.
 	Seq     map[int64]int64
 	db      map[string]string
@@ -37,8 +37,8 @@ type KVServer struct {
 
 func (kv *KVServer) PutAppend(ctx context.Context, args *KV.PutAppendArgs) (*KV.PutAppendReply, error) {
 	// Your code here.
+	time.Sleep(time.Millisecond * time.Duration(kv.delay))
 
-	//time.Sleep(time.Second)
 	reply := &KV.PutAppendReply{}
 	_, reply.IsLeader = kv.rf.GetState()
 	//reply.IsLeader = false;
@@ -65,6 +65,7 @@ func (kv *KVServer) PutAppend(ctx context.Context, args *KV.PutAppendArgs) (*KV.
 }
 
 func (kv *KVServer) Get(ctx context.Context, args *KV.GetArgs) (*KV.GetReply, error) {
+	time.Sleep(time.Millisecond * time.Duration(kv.delay))
 
 	reply := &KV.GetReply{}
 	_, reply.IsLeader = kv.rf.GetState()
@@ -141,6 +142,7 @@ func main() {
 	// Members's address
 	members := strings.Split(*mems, ",")
 	delay, _ := strconv.Atoi(*delays)
+	server.delay = delay
 	if delay == 0 {
 		fmt.Println("##########################################")
 		fmt.Println("### Don't forget input delay's value ! ###")
@@ -151,7 +153,7 @@ func main() {
 
 	go server.RegisterServer(address + "1")
 
-	server.rf = myraft.MakeRaft(address, members, persist, &server.mu, server.applyCh, delay)
+	server.rf = myraft.MakeRaft(address, members, persist, &server.mu, server.applyCh)
 
 	time.Sleep(time.Second * 1200)
 
