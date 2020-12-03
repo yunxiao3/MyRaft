@@ -475,6 +475,7 @@ func (rf *GeoRaft) AppendEntries(ctx context.Context, args *RPC.AppendEntriesArg
 	if args.Term < rf.currentTerm {
 		return reply, nil
 	}
+	//fmt.Println("args.Term ", args.Term)
 
 	index := args.PrevLogIndex
 	for i := 0; i < len(log); i++ {
