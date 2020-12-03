@@ -191,6 +191,8 @@ func (rf *Raft) RequestVote(ctx context.Context, args *RPC.RequestVoteArgs) (*RP
 
 //Leader Section:
 func (rf *Raft) startAppendLog() {
+	fmt.Println("startAppendLog")
+
 	for i := 0; i < len(rf.members); i++ {
 		go func(idx int) {
 			for {
@@ -254,9 +256,42 @@ func (rf *Raft) startAppendLog() {
 	}
 }
 
+//Leader Section:
+func (rf *Raft) sendHeartBeat() {
+	fmt.Println("send heart beat")
+	for i := 0; i < len(rf.members); i++ {
+		go func(idx int) {
+			for {
+				args := RPC.AppendEntriesArgs{
+					Term:         rf.currentTerm,
+					LeaderId:     rf.me,
+					PrevLogIndex: rf.getPrevLogIdx(idx),
+					PrevLogTerm:  rf.getPrevLogTerm(idx),
+					//If last log index ≥ nextIndex for a follower:send AppendEntries RPC with log entries starting at nextIndex
+					//nextIndex > last log index, rf.log[rf.nextIndex[idx]:] will be empty then like a heartbeat
+					Log:          nil,
+					LeaderCommit: rf.commitIndex,
+				}
+				//:= &RPC.AppendEntriesReply{}
+				reply, ret := rf.sendAppendEntries(rf.members[idx], &args)
+				if !ret || rf.state != Leader || rf.currentTerm != args.Term {
+					return
+				}
+				if reply.Term > rf.currentTerm { //all server rule 1 If RPC response contains term T > currentTerm:
+					rf.beFollower(reply.Term) // set currentTerm = T, convert to follower (§5.1)
+					return
+				}
+			}
+
+		}(i)
+	}
+}
+
 func (rf *Raft) sendAppendEntries(address string, args *RPC.AppendEntriesArgs) (*RPC.AppendEntriesReply, bool) {
 	// Initialize Client
-	// fmt.Println("sendAppendEntries")
+
+	time.Sleep(time.Millisecond * time.Duration(rf.delay+rand.Intn(25)))
+
 	conn, err := grpc.Dial(address, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
@@ -507,7 +542,7 @@ func (rf *Raft) init() {
 					//    rf.mu.Unlock()
 				}
 			case Leader:
-				rf.startAppendLog()
+				rf.sendHeartBeat()
 				time.Sleep(heartbeatTime)
 			}
 		}
@@ -566,7 +601,7 @@ func (rf *Raft) sendRequestVote(address string, args *RPC.RequestVoteArgs) (bool
 }
 
 func MakeRaft(add string, mem []string, persist *Per.Persister,
-	mu *sync.Mutex, applyCh chan int) *Raft {
+	mu *sync.Mutex, applyCh chan int, delay int) *Raft {
 	raft := &Raft{}
 	if len(mem) <= 1 {
 		panic("#######Address is less 1, you should set follower's address!######")
@@ -576,7 +611,7 @@ func MakeRaft(add string, mem []string, persist *Per.Persister,
 	raft.applyCh = applyCh
 	raft.mu = mu
 	raft.members = make([]string, len(mem))
-	//raft.delay = delay
+	raft.delay = delay
 	for i := 0; i < len(mem); i++ {
 		raft.members[i] = mem[i]
 		fmt.Println(raft.members[i])

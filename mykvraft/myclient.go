@@ -50,23 +50,16 @@ func MakeClerk(servers []string) *Clerk {
 
 func (ck *Clerk) Get(key string) string {
 	args := &KV.GetArgs{Key: key}
-	id := ck.leaderId
-	/* 	for {
+	id := rand.Intn(len(ck.servers)+10) % len(ck.servers)
+	for {
 		reply, ok := ck.getValue(ck.servers[id], args)
-		if ok && reply.IsLeader {
-			ck.leaderId = id
+		if ok {
+			fmt.Println(id)
 			return reply.Value
 		} else {
 			fmt.Println("can not connect ", ck.servers[id], "or it's not leader")
 		}
-		id = (id + 1) % len(ck.servers)
-
-	} */
-	for {
-		reply, ok := ck.getValue(ck.servers[id], args)
-		if ok {
-			return reply.Value
-		}
+		id = rand.Intn(len(ck.servers)+10) % len(ck.servers)
 	}
 }
 
@@ -189,8 +182,6 @@ func main() {
 		return
 	}
 
-	fmt.Println("count")
-	//serverNumm := 20
 	if *mode == "write" {
 		for i := 0; i < serverNumm; i++ {
 			go Wirterequest(1000, servers)
@@ -203,9 +194,10 @@ func main() {
 		fmt.Println("### Wrong Mode ! ###")
 		return
 	}
-
+	fmt.Println("count")
 	time.Sleep(time.Second * 3)
 	fmt.Println(count / 3)
+	return
 
 	time.Sleep(time.Second * 1200)
 

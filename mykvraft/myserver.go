@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	"net"
 	"strconv"
 	"strings"
@@ -37,7 +38,7 @@ type KVServer struct {
 
 func (kv *KVServer) PutAppend(ctx context.Context, args *KV.PutAppendArgs) (*KV.PutAppendReply, error) {
 	// Your code here.
-	time.Sleep(time.Millisecond * time.Duration(kv.delay))
+	time.Sleep(time.Millisecond * time.Duration(kv.delay+rand.Intn(25)))
 
 	reply := &KV.PutAppendReply{}
 	_, reply.IsLeader = kv.rf.GetState()
@@ -65,7 +66,7 @@ func (kv *KVServer) PutAppend(ctx context.Context, args *KV.PutAppendArgs) (*KV.
 }
 
 func (kv *KVServer) Get(ctx context.Context, args *KV.GetArgs) (*KV.GetReply, error) {
-	time.Sleep(time.Millisecond * time.Duration(kv.delay))
+	time.Sleep(time.Millisecond * time.Duration(kv.delay+rand.Intn(25)))
 
 	reply := &KV.GetReply{}
 	_, reply.IsLeader = kv.rf.GetState()
@@ -153,7 +154,7 @@ func main() {
 
 	go server.RegisterServer(address + "1")
 
-	server.rf = myraft.MakeRaft(address, members, persist, &server.mu, server.applyCh)
+	server.rf = myraft.MakeRaft(address, members, persist, &server.mu, server.applyCh, delay)
 
 	time.Sleep(time.Second * 1200)
 
