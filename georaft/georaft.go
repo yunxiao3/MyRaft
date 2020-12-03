@@ -186,7 +186,93 @@ func (rf *GeoRaft) startAppendLog() {
 
 	go rf.startAppendLogToFollower()
 	go rf.startAppendLogToSecretary()
+}
 
+func (rf *GeoRaft) sendHeartBeat2Secretary() {
+	for i := 0; i < len(rf.members); i++ {
+
+		go func(idx int) {
+			//fmt.Println("StartAppendEntries",rf.members[idx])
+			for {
+				rf.mu.Lock()
+				if rf.state != Leader {
+					rf.mu.Unlock()
+					return
+				}
+				//send initial empty AppendEntries RPCs (heartbeat) to each server
+				args := RPC.AppendEntriesArgs{
+					Term:         rf.currentTerm,
+					LeaderId:     rf.me,
+					PrevLogIndex: rf.getPrevLogIdx(idx),
+					PrevLogTerm:  rf.getPrevLogTerm(idx),
+					//If last log index ≥ nextIndex for a follower:send AppendEntries RPC with log entries starting at nextIndex
+					//nextIndex > last log index, rf.log[rf.nextIndex[idx]:] will be empty then like a heartbeat
+					Log:          nil,
+					LeaderCommit: rf.commitIndex,
+				}
+				rf.mu.Unlock()
+				//:= &RPC.AppendEntriesReply{}
+				reply, ret := rf.L2FsendAppendEntries(rf.members[idx], &args)
+				rf.mu.Lock()
+				if !ret || rf.state != Leader || rf.currentTerm != args.Term {
+					rf.mu.Unlock()
+					return
+				}
+				if reply.Term > rf.currentTerm { //all server rule 1 If RPC response contains term T > currentTerm:
+					rf.beFollower(reply.Term) // set currentTerm = T, convert to follower (§5.1)
+					rf.mu.Unlock()
+					return
+				}
+				rf.mu.Unlock()
+				return
+
+			}
+		}(i)
+	}
+}
+
+//Leader Section:
+func (rf *GeoRaft) sendHeartBeat2Follower() {
+	for i := 0; i < len(rf.members); i++ {
+
+		go func(idx int) {
+			//fmt.Println("StartAppendEntries",rf.members[idx])
+			for {
+				rf.mu.Lock()
+				if rf.state != Leader {
+					rf.mu.Unlock()
+					return
+				}
+				//send initial empty AppendEntries RPCs (heartbeat) to each server
+				args := RPC.AppendEntriesArgs{
+					Term:         rf.currentTerm,
+					LeaderId:     rf.me,
+					PrevLogIndex: rf.getPrevLogIdx(idx),
+					PrevLogTerm:  rf.getPrevLogTerm(idx),
+					//If last log index ≥ nextIndex for a follower:send AppendEntries RPC with log entries starting at nextIndex
+					//nextIndex > last log index, rf.log[rf.nextIndex[idx]:] will be empty then like a heartbeat
+					Log:          nil,
+					LeaderCommit: rf.commitIndex,
+				}
+				rf.mu.Unlock()
+				//:= &RPC.AppendEntriesReply{}
+				reply, ret := rf.L2FsendAppendEntries(rf.members[idx], &args)
+				rf.mu.Lock()
+				if !ret || rf.state != Leader || rf.currentTerm != args.Term {
+					rf.mu.Unlock()
+					return
+				}
+				if reply.Term > rf.currentTerm { //all server rule 1 If RPC response contains term T > currentTerm:
+					rf.beFollower(reply.Term) // set currentTerm = T, convert to follower (§5.1)
+					rf.mu.Unlock()
+					return
+				}
+				rf.mu.Unlock()
+				return
+
+			}
+		}(i)
+	}
 }
 
 //Leader Section:
@@ -663,7 +749,7 @@ func (rf *GeoRaft) init() {
 				}
 				//		fmt.Println(rf.log)
 			case Leader:
-				rf.startAppendLog()
+				rf.sendHeartBeat2Follower()
 				time.Sleep(heartbeatTime)
 			}
 		}
