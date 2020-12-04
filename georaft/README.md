@@ -2,6 +2,8 @@
 
 ### 1.Secretary：
 
+![1607081569271](img/1607081569271.png)
+
 #### 1.1 创建
 
 ​	在Geo-Raft集群中的写压力比较大且Follower节点比较多，Leader的Log Replication会成为整个系统的一个性能瓶颈，此时：
@@ -15,8 +17,6 @@
 2. Leader需要处理的网络连接数：ConnectNum =  ResetFollowerNum  +  SecretaryNum
 
 ####　1.2 同步
-
-![1602948255239](img/1602948255239.png)
 
 ​	引入了Secretary以后，Leader会把与该Secretary处于**同一数据中心**的Follower的Log Replication交由Secretary来负责，并维护一个SecretaryFollower的数组用以记录被Secretary接管的Follower。
 
@@ -36,6 +36,8 @@
 
 ### 2. Observer
 
+![1607081638674](img/1607081638674.png)
+
 #### 2.1 创建
 
 ​	在Geo-Raft集群中的读压力比较大且Follower节点比较小，整个Raft的集群的IO压力会比较大。此时因为集群中的Follower数量非常少，所以即使是将一部分的读压力分担给Follower，各个节点的IO压力也会非常的大。
@@ -52,17 +54,9 @@ IO = ReadData / (LeaderNum + FollowerNum + ObserverNum)
 
 1.  read 请求到达 leader 之后转发请求时需要获取最新的 commit index，然后再等到 applied index >= commit index 之后再 read 数据返回 
 
-........
 
-**这一部分目前不是很清楚这样是否能保证线性一致性，需要看下Raft作者的博士论文**
 
 ### 3. Appendix
-
-实现代码：https://github.com/yunxiao3/MyRaft/tree/master/georaft
-
-代码网络通信测试：https://github.com/yunxiao3/MyRaft/tree/master/main
-
-目前实现的GeoRaft的网络通信已经完成了，但是里面的Observer和Secretary具体怎么控制的逻辑还没写完。
 
 当前定义的RPC：
 
