@@ -24,7 +24,7 @@ go run myserver.go \
 -secmembers localhost:5004,localhost:5005
 
 
-go run myclient.go -servers localhost:5002,localhost:5001,localhost:5000
+go run myclient.go -servers localhost:5002,localhost:5001,localhost:5000 -nums 
 
 
 go run mysecretary.go -address localhost:5003 -members  localhost:5005,localhost:5004

@@ -170,25 +170,33 @@ func main() {
 
 	var ser = flag.String("servers", "", "Input Your follower")
 	var mode = flag.String("mode", "", "Input Your follower")
-	var nums = flag.String("nums", "", "Input Your follower")
-
+	var cnums = flag.String("cnums", "", "Input Your follower")
+	var onums = flag.String("onums", "", "Input Your follower")
 	flag.Parse()
 	servers := strings.Split(*ser, ",")
-	serverNumm, _ := strconv.Atoi(*nums)
-	if serverNumm == 0 {
+	clientNumm, _ := strconv.Atoi(*cnums)
+	optionNumm, _ := strconv.Atoi(*onums)
+
+	if clientNumm == 0 {
 		fmt.Println("##########################################")
-		fmt.Println("### Don't forget input numm's value ! ###")
+		fmt.Println("### Don't forget input -cnum's value ! ###")
+		fmt.Println("##########################################")
+		return
+	}
+	if optionNumm == 0 {
+		fmt.Println("##########################################")
+		fmt.Println("### Don't forget input -onumm's value ! ###")
 		fmt.Println("##########################################")
 		return
 	}
 
 	if *mode == "write" {
-		for i := 0; i < serverNumm; i++ {
-			go Wirterequest(1000, servers)
+		for i := 0; i < clientNumm; i++ {
+			go Wirterequest(optionNumm, servers)
 		}
 	} else if *mode == "read" {
-		for i := 0; i < serverNumm; i++ {
-			go Readrequest(1000, servers)
+		for i := 0; i < clientNumm; i++ {
+			go Readrequest(optionNumm, servers)
 		}
 	} else {
 		fmt.Println("### Wrong Mode ! ###")

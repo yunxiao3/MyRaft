@@ -749,7 +749,8 @@ func (rf *GeoRaft) init() {
 				}
 				//		fmt.Println(rf.log)
 			case Leader:
-				rf.sendHeartBeat2Follower()
+				//rf.sendHeartBeat2Follower()
+				rf.startAppendLog()
 				time.Sleep(heartbeatTime)
 			}
 		}
