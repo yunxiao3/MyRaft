@@ -185,7 +185,12 @@ func (rf *GeoRaft) startAppendLog() {
 	//fmt.Println("startAppendLog ")
 
 	go rf.startAppendLogToFollower()
-	go rf.startAppendLogToSecretary()
+	if rf.secmembers[0] != "" {
+		//	fmt.Println("aaa")
+		go rf.startAppendLogToSecretary()
+	} /*  else {
+		fmt.Println("bb")
+	} */
 }
 
 func (rf *GeoRaft) sendHeartBeat2Secretary() {

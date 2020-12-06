@@ -144,7 +144,7 @@ func main() {
 	server.applyCh = make(chan int, 1)
 	delay, _ := strconv.Atoi(*delays)
 	server.delay = delay
-	fmt.Println(server.delay)
+	fmt.Println("delay", server.delay)
 
 	server.persist = persist
 
@@ -153,6 +153,10 @@ func main() {
 	secretaries := strings.Split(*sec, ",")
 	observers := strings.Split(*ob, ",")
 	secmembers := strings.Split(*secm, ",")
+	/* if secmembers[0] == "" {
+		fmt.Println(secmembers)
+		secmembers = nil
+	} */
 
 	fmt.Println(address, members, secretaries, secretaries == nil)
 
