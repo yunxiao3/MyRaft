@@ -58,7 +58,7 @@ type GeoRaft struct {
 	//handle rpc
 	voteCh      chan bool
 	appendLogCh chan bool
-
+	delay       int
 	// New
 	persist     *Per.Persister
 	client      RPC.GeoRAFTClient
@@ -142,7 +142,7 @@ func (rf *GeoRaft) updateLastApplied() {
 			//  fmt.Println("Put key value :", m.Key, m.Value)//, curLog.Command.(config.Op).Key,"value",curLog.Command.(config.Op).Value  )
 			//  rf.mu.Lock()
 			rf.persist.Put(m.Key, m.Value)
-			fmt.Println("\n\n####apply :", curLog.Command)
+			//fmt.Println("\n\n####apply :", curLog.Command)
 
 			if rf.state == Leader {
 				rf.applyCh <- 1
@@ -373,6 +373,8 @@ func (rf *GeoRaft) sendAppendEntries(address string, args *RPC.AppendEntriesArgs
 func (rf *GeoRaft) L2FsendAppendEntries(address string, args *RPC.AppendEntriesArgs) (*RPC.AppendEntriesReply, bool) {
 	// Initialize Client
 	// fmt.Println("sendAppendEntries")
+	time.Sleep(time.Millisecond * time.Duration(rf.delay+rand.Intn(25)))
+
 	conn, err := grpc.Dial(address, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
@@ -437,17 +439,18 @@ func (rf *GeoRaft) startAppendLogToSecretary() {
 					*/
 					var match []int32
 					json.Unmarshal(reply.MatchIndex, &match)
-
+					//	fmt.Println("update match index: ", match)
 					// flag := false
 					for j := 0; j < len(rf.secmembers); j++ {
 						for k := 0; k < len(rf.members); k++ {
 							if rf.members[k] == rf.secmembers[j] {
 								rf.matchIndex[k] = match[j]
+								//fmt.Println("rf.matchIndex[", k, "] = ", match[j])
 							}
 						}
 					}
 
-					// rf.updateCommitIndex()
+					rf.updateCommitIndex()
 					rf.mu.Unlock()
 					return
 				} else { //If AppendEntries fails because of log inconsistency: decrement nextIndex and retry
@@ -474,6 +477,8 @@ func (rf *GeoRaft) startAppendLogToSecretary() {
 
 func (rf *GeoRaft) L2SsendAppendEntries(address string,
 	args *RPC.AppendEntriesArgs) (*RPC.L2SAppendEntriesReply, bool) {
+
+	//time.Sleep(time.Millisecond * time.Duration(rf.delay+rand.Intn(25)))
 
 	// Initialize Client
 	conn, err := grpc.Dial(address, grpc.WithInsecure(), grpc.WithBlock())
@@ -809,7 +814,7 @@ func (rf *GeoRaft) sendRequestVote(address string, args *RPC.RequestVoteArgs) (b
 }
 
 func MakeGeoRaft(add string, follower []string, secretary []string, secmember []string, observer []string,
-	persist *Per.Persister, mu *sync.Mutex, applyCh chan int) *GeoRaft {
+	persist *Per.Persister, mu *sync.Mutex, applyCh chan int, delay int) *GeoRaft {
 	Georaft := &GeoRaft{}
 	if len(follower) <= 1 {
 		panic("#######Address is less 1, you should set follower's address!######")
@@ -819,7 +824,7 @@ func MakeGeoRaft(add string, follower []string, secretary []string, secmember []
 	Georaft.persist = persist
 	Georaft.applyCh = applyCh
 	Georaft.mu = mu
-
+	Georaft.delay = delay
 	Georaft.members = make([]string, len(follower))
 	for i := 0; i < len(follower); i++ {
 		Georaft.members[i] = follower[i]

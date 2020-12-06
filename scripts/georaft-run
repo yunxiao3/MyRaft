@@ -6,28 +6,28 @@ go run myserver.go \
 -address localhost:5000 \
 -members  localhost:5001,localhost:5002,localhost:5004,localhost:5005 \
 -secretaries localhost:5003 \
--secmembers localhost:5004,localhost:5005
-
+-secmembers localhost:5004,localhost:5005 \
+-delay 50
 
 
 go run myserver.go \
 -address localhost:5001 \
 -members  localhost:5000,localhost:5002,localhost:5004,localhost:5005 \
 -secretaries localhost:5003 \
--secmembers localhost:5004,localhost:5005
-
+-secmembers localhost:5004,localhost:5005 \
+-delay 50
 
 go run myserver.go \
 -address localhost:5002 \
 -members  localhost:5001,localhost:5000,localhost:5004,localhost:5005 \
 -secretaries localhost:5003 \
--secmembers localhost:5004,localhost:5005
+-secmembers localhost:5004,localhost:5005 \
+-delay 50
+
+go run myclient.go -servers localhost:5002,localhost:5001,localhost:5000 -cnums 1 -onums 1  -mode write
 
 
-go run myclient.go -servers localhost:5002,localhost:5001,localhost:5000 -nums 
-
-
-go run mysecretary.go -address localhost:5003 -members  localhost:5005,localhost:5004
+go run mysecretary.go -address localhost:5003 -members  localhost:5004,localhost:5005
 
 
 go run myserver.go -address localhost:5004 -members  localhost:5005,localhost:5006

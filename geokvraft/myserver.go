@@ -4,7 +4,9 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -32,10 +34,12 @@ type KVServer struct {
 	db      map[string]string
 	chMap   map[int]chan config.Op
 	persist *Per.Persister
+	delay   int
 }
 
 func (kv *KVServer) PutAppend(ctx context.Context, args *KV.PutAppendArgs) (*KV.PutAppendReply, error) {
 	// Your code here.
+	time.Sleep(time.Millisecond * time.Duration(kv.delay+rand.Intn(25)))
 
 	//time.Sleep(time.Second)
 	reply := &KV.PutAppendReply{}
@@ -64,6 +68,7 @@ func (kv *KVServer) PutAppend(ctx context.Context, args *KV.PutAppendArgs) (*KV.
 }
 
 func (kv *KVServer) Get(ctx context.Context, args *KV.GetArgs) (*KV.GetReply, error) {
+	time.Sleep(time.Millisecond * time.Duration(kv.delay+rand.Intn(25)))
 
 	reply := &KV.GetReply{}
 	_, reply.IsLeader = kv.rf.GetState()
@@ -123,6 +128,7 @@ func main() {
 	var sec = flag.String("secretaries", "", "Input Your secretary")
 	var ob = flag.String("observers", "", "Input Your secretary")
 	var secm = flag.String("secmembers", "", "Input Your secretary")
+	var delays = flag.String("delay", "", "Input Your follower")
 
 	flag.Parse()
 
@@ -136,10 +142,9 @@ func main() {
 
 	//for i := 0; i <= int (address[ len(address) - 1] - '0'); i++{
 	server.applyCh = make(chan int, 1)
-	//}
-
-	//server.applyCh = make(chan int, 1)
-	fmt.Println(server.applyCh)
+	delay, _ := strconv.Atoi(*delays)
+	server.delay = delay
+	fmt.Println(server.delay)
 
 	server.persist = persist
 
@@ -152,7 +157,8 @@ func main() {
 	fmt.Println(address, members, secretaries, secretaries == nil)
 
 	go server.RegisterServer(address + "1")
-	server.rf = georaft.MakeGeoRaft(address, members, secretaries, secmembers, observers, persist, &server.mu, server.applyCh)
+	server.rf = georaft.MakeGeoRaft(address, members, secretaries, secmembers,
+		observers, persist, &server.mu, server.applyCh, delay)
 
 	time.Sleep(time.Second * 1200)
 

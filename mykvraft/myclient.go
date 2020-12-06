@@ -166,6 +166,41 @@ func Readrequest(num int, servers []string) {
 	}
 }
 
+func ReadLatency(num int, servers []string) {
+	ck := Clerk{}
+	ck.servers = make([]string, len(servers))
+
+	for i := 0; i < len(servers); i++ {
+		ck.servers[i] = servers[i] + "1"
+	}
+	ck.Put("key", "value")
+	begin := time.Now().UnixNano()
+	for i := 0; i < num; i++ {
+		ck.Get("key")
+		atomic.AddInt32(&count, 1)
+	}
+	end := time.Now().UnixNano()
+	fmt.Println("Average read Latency: ", (end-begin)/int64(num)/1e6, " ms")
+}
+
+func WriteLatency(num int, servers []string) {
+	ck := Clerk{}
+	ck.servers = make([]string, len(servers))
+
+	for i := 0; i < len(servers); i++ {
+		ck.servers[i] = servers[i] + "1"
+	}
+	begin := time.Now().UnixNano()
+	for i := 0; i < num; i++ {
+		key := "key" + strconv.Itoa(rand.Intn(100000))
+		value := "value" + strconv.Itoa(rand.Intn(100000))
+		ck.Put(key, value)
+		atomic.AddInt32(&count, 1)
+	}
+	end := time.Now().UnixNano()
+	fmt.Println("Average write Latency: ", (end-begin)/int64(num)/1e6, " ms")
+}
+
 func main() {
 
 	var ser = flag.String("servers", "", "Input Your follower")
@@ -198,6 +233,14 @@ func main() {
 		for i := 0; i < clientNumm; i++ {
 			go Readrequest(optionNumm, servers)
 		}
+	} else if *mode == "readlatency" {
+		for i := 0; i < clientNumm; i++ {
+			go ReadLatency(optionNumm, servers)
+		}
+	} else if *mode == "writelatency" {
+		for i := 0; i < clientNumm; i++ {
+			go WriteLatency(optionNumm, servers)
+		}
 	} else {
 		fmt.Println("### Wrong Mode ! ###")
 		return
@@ -205,7 +248,7 @@ func main() {
 	fmt.Println("count")
 	time.Sleep(time.Second * 3)
 	fmt.Println(count / 3)
-	return
+	//	return
 
 	time.Sleep(time.Second * 1200)
 
