@@ -542,7 +542,7 @@ func (rf *Raft) init() {
 					//    rf.mu.Unlock()
 				}
 			case Leader:
-				rf.sendHeartBeat()
+				rf.startAppendLog()
 				time.Sleep(heartbeatTime)
 			}
 		}
