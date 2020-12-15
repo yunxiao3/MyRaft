@@ -133,7 +133,7 @@ func main() {
 	persist := &Per.Persister{}
 	persist.Init("../db/" + address)
 	//for i := 0; i <= int (address[ len(address) - 1] - '0'); i++{
-	server.applyCh = make(chan int, 1)
+	server.applyCh = make(chan int, 100)
 
 	//server.applyCh = make(chan int, 1)
 	fmt.Println(server.applyCh)
