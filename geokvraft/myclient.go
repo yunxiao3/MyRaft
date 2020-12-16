@@ -54,7 +54,7 @@ func (ck *Clerk) Get(key string) string {
 	for {
 		reply, ok := ck.getValue(ck.servers[id], args)
 		if ok {
-			fmt.Println(id)
+			//fmt.Println(id)
 			return reply.Value
 		} else {
 			fmt.Println("can not connect ", ck.servers[id], "or it's not leader")
