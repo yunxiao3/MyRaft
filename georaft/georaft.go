@@ -6,22 +6,17 @@ import (
 	"log"
 	"math/rand"
 	"net"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	config "../config"
 	RPC "../grpc/georaft"
 	Per "../persister"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
-
-	//"../labgob"
-	//"bytes"
-	"sort"
-
-	config "../config"
-	//"os"
 )
 
 type GeoRaft struct {
@@ -186,11 +181,8 @@ func (rf *GeoRaft) startAppendLog() {
 
 	go rf.startAppendLogToFollower()
 	if rf.secmembers[0] != "" {
-		//	fmt.Println("aaa")
 		go rf.startAppendLogToSecretary()
-	} /*  else {
-		fmt.Println("bb")
-	} */
+	}
 }
 
 func (rf *GeoRaft) sendHeartBeat2Secretary() {
