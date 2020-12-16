@@ -79,11 +79,11 @@ func (kv *KVServer) Get(ctx context.Context, args *KV.GetArgs) (*KV.GetReply, er
 
 	//fmt.Println()
 
-	oringalOp := config.Op{"Get", args.Key, "", 0, 0}
+	//oringalOp := config.Op{"Get", args.Key, "", 0, 0}
 	//	_, _, isLeader := kv.rf.Start(oringalOp)
-	if !isLeader {
-		return reply, nil
-	}
+	//if !isLeader {
+	//	return reply, nil
+	//}
 	//fmt.Println(index)
 
 	reply.IsLeader = true
