@@ -1,16 +1,12 @@
 ## Geo-Raft 算法
 
+![1608473904495](http://img.jackdu.cn/github/1608473904495.png)
 
-
-![1608473904495](./img/1608473904495.png)
-
-
-
-​	Geo-Raft是基于spot instance的一种raft的扩展算法，主要的想法是将secretary和observer运行在spot instance上，其中secretary和observer都是无状态的。其中observer这个角色在etcd中已经被实现成了但是我们的使用这两个角色的最初目的是如何利用不可靠的spot instance来提供可靠的一致性服务。并且由于spot instance的费用只有on demand的十分之一，所以可以极大的降低云服务的费用。
+​	Geo-Raft是基于spot instance的一种raft的扩展算法，主要的想法是将secretary和observer运行在spot instance上，其中secretary和observer都是无状态的。并且在读写压力都比较小的时候，Geo-raft和原来的raft并没有区别，只有在系统的读写压力变大时，Geo-raft才会进行secretary和observer的扩展操作。并且由于这两个角色是运行在spot instance上面的。且spot instance的费用只有on demand的十分之一，所以可以极大的降低云服务的费用。
 
 ### 1.Secretary：
 
-![1607081569271](./img/1607081569271.png)
+![1607081569271](http://img.jackdu.cn/github/1607081569271.png)
 
 #### 1.1 创建
 
@@ -44,7 +40,7 @@
 
 ### 2. Observer
 
-![1607081638674](./img/1607081638674.png)
+![1607081638674](http://img.jackdu.cn/github/1607081638674.png)
 
 #### 2.1 创建
 
