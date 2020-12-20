@@ -35,7 +35,6 @@ message AppendEntriesReply{
 
 service Secretary {
     rpc L2SAppendEntries (AppendEntriesArgs) returns (L2SAppendEntriesReply) {};
-
 }
 
 
